@@ -88,7 +88,7 @@ func main() {
 
 	// pprotein
 	// TODO: 後で消す
-	go echov4.Integrate(e)
+	echov4.Integrate(e)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
