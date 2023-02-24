@@ -104,7 +104,7 @@ func main() {
 var (
 	bookCache   sync.Map
 	memberCache sync.Map
-	memberCount atomic.Int32
+	memberCount atomic.Int64
 )
 
 func initCache() {
@@ -348,8 +348,6 @@ func postMemberHandler(c echo.Context) error {
 		Banned:      false,
 		CreatedAt:   time.Now(),
 	}
-	memberCache.Store(id, res)
-	memberCount.Add(1)
 
 	_, err := db.ExecContext(c.Request().Context(),
 		"INSERT INTO `member` (`id`, `name`, `address`, `phone_number`, `banned`, `created_at`) VALUES (?, ?, ?, ?, false, ?)",
@@ -357,6 +355,9 @@ func postMemberHandler(c echo.Context) error {
 	if err != nil {
 		log.Println(http.StatusInternalServerError, err.Error())
 	}
+
+	memberCache.Store(id, res)
+	memberCount.Add(1)
 
 	return c.JSON(http.StatusCreated, res)
 }
@@ -472,7 +473,8 @@ func patchMemberHandler(c echo.Context) error {
 	}
 
 	// 会員の存在を確認
-	if _, ok := getMember(id, false); !ok {
+	member, ok := getMember(id, false)
+	if !ok {
 		return echo.NewHTTPError(http.StatusNotFound, "member not found")
 	}
 
@@ -481,18 +483,22 @@ func patchMemberHandler(c echo.Context) error {
 	if req.Name != "" {
 		query += "`name` = ?, "
 		params = append(params, req.Name)
+		member.Name = req.Name
 	}
 	if req.Address != "" {
 		query += "`address` = ?, "
 		params = append(params, req.Address)
+		member.Address = req.Address
 	}
 	if req.PhoneNumber != "" {
 		query += "`phone_number` = ?, "
 		params = append(params, req.PhoneNumber)
+		member.PhoneNumber = req.PhoneNumber
 	}
 	query = strings.TrimSuffix(query, ", ")
 	query += " WHERE `id` = ?"
 	params = append(params, id)
+	memberCache.Store(id, member)
 
 	_, err := db.ExecContext(c.Request().Context(), query, params...)
 	if err != nil {
