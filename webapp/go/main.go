@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -115,15 +116,6 @@ func initCache() {
 
 	for _, book := range books {
 		bookCache.Store(book.ID, book)
-	}
-
-	members := []Member{}
-	if err := db.SelectContext(context.Background(), &members, "SELECT * FROM `member`"); err != nil {
-		log.Panic(err)
-	}
-
-	for _, member := range members {
-		memberCache.Store(member.ID, member)
 	}
 }
 
@@ -349,13 +341,6 @@ func postMemberHandler(c echo.Context) error {
 		CreatedAt:   time.Now(),
 	}
 
-	_, err := db.ExecContext(c.Request().Context(),
-		"INSERT INTO `member` (`id`, `name`, `address`, `phone_number`, `banned`, `created_at`) VALUES (?, ?, ?, ?, false, ?)",
-		res.ID, res.Name, res.Address, res.PhoneNumber, res.CreatedAt)
-	if err != nil {
-		log.Println(http.StatusInternalServerError, err.Error())
-	}
-
 	memberCache.Store(id, res)
 	memberCount.Add(1)
 
@@ -389,35 +374,34 @@ func getMembersHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid order")
 	}
 
-	tx, err := db.BeginTxx(c.Request().Context(), &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
+	members := []Member{}
+	memberCache.Range(func(_, value interface{}) bool {
+		m := value.(Member)
+		if !m.Banned {
+			members = append(members, m)
+		}
+		return true
+	})
 
-	query := "SELECT * FROM `member` WHERE `banned` = false "
 	switch order {
 	case "name_asc":
-		query += "ORDER BY `name` ASC "
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].Name < members[j].Name
+		})
 	case "name_desc":
-		query += " ORDER BY `name` DESC "
-	default:
-		query += "ORDER BY `name` ASC "
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].Name > members[j].Name
+		})
 	}
-	query += "LIMIT ? OFFSET ?"
 
-	members := []Member{}
-	err = tx.SelectContext(c.Request().Context(), &members, query, memberPageLimit, (page-1)*memberPageLimit)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	end := len(members)
+	if page*memberPageLimit < end {
+		end = page * memberPageLimit
 	}
+	members = members[(page-1)*memberPageLimit : end]
 	if len(members) == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "no members to show in this page")
 	}
-
-	_ = tx.Commit()
 
 	return c.JSON(http.StatusOK, GetMembersResponse{
 		Members: members,
@@ -478,32 +462,16 @@ func patchMemberHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "member not found")
 	}
 
-	query := "UPDATE `member` SET "
-	params := []any{}
 	if req.Name != "" {
-		query += "`name` = ?, "
-		params = append(params, req.Name)
 		member.Name = req.Name
 	}
 	if req.Address != "" {
-		query += "`address` = ?, "
-		params = append(params, req.Address)
 		member.Address = req.Address
 	}
 	if req.PhoneNumber != "" {
-		query += "`phone_number` = ?, "
-		params = append(params, req.PhoneNumber)
 		member.PhoneNumber = req.PhoneNumber
 	}
-	query = strings.TrimSuffix(query, ", ")
-	query += " WHERE `id` = ?"
-	params = append(params, id)
 	memberCache.Store(id, member)
-
-	_, err := db.ExecContext(c.Request().Context(), query, params...)
-	if err != nil {
-		log.Println(err)
-	}
 
 	return c.NoContent(http.StatusNoContent)
 }
@@ -968,8 +936,8 @@ func getLendingsHandler(c echo.Context) error {
 		_ = tx.Rollback()
 	}()
 
-	query := "SELECT `lending`.*, `member`.`name` AS `member_name`, `book`.`title` AS `book_title` FROM `lending`" +
-		" JOIN `member` ON `lending`.`member_id` = `member`.`id` JOIN `book` ON `lending`.`book_id` = `book`.`id`"
+	query := "SELECT `lending`.*, `book`.`title` AS `book_title` FROM `lending`" +
+		" JOIN `book` ON `lending`.`book_id` = `book`.`id`"
 	args := []any{}
 	if overDue == "true" {
 		query += " WHERE `due` > ?"
@@ -983,6 +951,13 @@ func getLendingsHandler(c echo.Context) error {
 	}
 
 	_ = tx.Commit()
+
+	for _, r := range res {
+		m, ok := memberCache.Load(r.MemberID)
+		if ok {
+			r.MemberName = m.(Member).Name
+		}
+	}
 
 	return c.JSON(http.StatusOK, res)
 }

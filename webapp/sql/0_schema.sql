@@ -32,13 +32,13 @@ CREATE INDEX book_id ON lending(book_id);
 
 DROP TABLE IF EXISTS `member`;
 
-CREATE TABLE `member` (
-  `id` varchar(255) NOT NULL,
-  `name` varchar(255) NOT NULL,
-  `address` varchar(255) NOT NULL,
-  `phone_number` varchar(255) NOT NULL,
-  `banned` tinyint(1) NOT NULL,
-  `created_at` datetime(6) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
-CREATE INDEX banned ON member(banned);
+-- CREATE TABLE `member` (
+--   `id` varchar(255) NOT NULL,
+--   `name` varchar(255) NOT NULL,
+--   `address` varchar(255) NOT NULL,
+--   `phone_number` varchar(255) NOT NULL,
+--   `banned` tinyint(1) NOT NULL,
+--   `created_at` datetime(6) NOT NULL,
+--   PRIMARY KEY (`id`)
+-- ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+-- CREATE INDEX banned ON member(banned);
