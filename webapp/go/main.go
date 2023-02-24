@@ -882,7 +882,7 @@ func postLendingsHandler(c echo.Context) error {
 
 	// 貸し出し中かどうか確認
 	lendings := make([]Lending, len(req.BookIDs))
-	sqlStr, params, err = sqlx.In("SELECT * FROM `lending` WHERE `book_id` IN (?)", req.BookIDs)
+	sqlStr, params, err = sqlx.In("SELECT id FROM `lending` WHERE `book_id` IN (?)", req.BookIDs)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -895,14 +895,7 @@ func postLendingsHandler(c echo.Context) error {
 		lendingMap[lending.BookID] = lending
 	}
 
-	type insertLendingColmuns struct {
-		ID        string    `db:"id"`
-		BookID    string    `db:"book_id"`
-		MemberID  string    `db:"member_id"`
-		Due       time.Time `db:"due"`
-		CreatedAt time.Time `db:"created_at"`
-	}
-	rows := make([]insertLendingColmuns, len(req.BookIDs))
+	lendings2 := make([]Lending, len(req.BookIDs))
 	lendingIDs := make([]string, len(req.BookIDs))
 	for i, bookID := range req.BookIDs {
 		bookTitle, ok := bookTitleMap[bookID]
@@ -916,7 +909,7 @@ func postLendingsHandler(c echo.Context) error {
 
 		id := generateID()
 		lendingIDs[i] = id
-		rows[i] = insertLendingColmuns{
+		lendings2[i] = Lending{
 			ID:        id,
 			BookID:    bookID,
 			MemberID:  req.MemberID,
@@ -929,7 +922,7 @@ func postLendingsHandler(c echo.Context) error {
 	}
 
 	// 貸し出し
-	_, err = tx.NamedExecContext(c.Request().Context(), "INSERT INTO `lending` (`id`, `book_id`, `member_id`, `due`, `created_at`) VALUES (:id, :book_id, :member_id, :due, :created_at)", rows)
+	_, err = tx.NamedExecContext(c.Request().Context(), "INSERT INTO `lending` (`id`, `book_id`, `member_id`, `due`, `created_at`) VALUES (:id, :book_id, :member_id, :due, :created_at)", lendings2)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
