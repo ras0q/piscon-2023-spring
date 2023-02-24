@@ -92,9 +92,6 @@ func main() {
 	// TODO: 後で消す
 	echov4.Integrate(e)
 
-	// sc
-	initCache()
-
 	e.Logger.Fatal(e.Start(":8080"))
 }
 
@@ -117,6 +114,19 @@ func initCache() {
 	}
 
 	bookCache = _bookCache
+
+	books := []Book{}
+	if err = db.SelectContext(context.Background(), &books, "SELECT id FROM `book`"); err != nil {
+		log.Panic(err)
+	}
+
+	for _, book := range books {
+		go func(bookID string) {
+			if _, err := bookCache.Get(context.Background(), bookID); err != nil {
+				log.Panic(err)
+			}
+		}(book.ID)
+	}
 }
 
 /*
@@ -276,6 +286,9 @@ func initializeHandler(c echo.Context) error {
 			log.Printf("failed to communicate with pprotein: %v", err)
 		}
 	}()
+
+	// sc
+	go initCache()
 
 	var req InitializeHandlerRequest
 	if err := c.Bind(&req); err != nil {
