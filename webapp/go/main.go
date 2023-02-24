@@ -413,6 +413,11 @@ func getMembersHandler(c echo.Context) error {
 		sort.Slice(members, func(i, j int) bool {
 			return members[i].Name > members[j].Name
 		})
+	// default is name_asc
+	default:
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].Name < members[j].Name
+		})
 	}
 
 	if s := (page - 1) * memberPageLimit; s < 0 || s >= len(members) {
