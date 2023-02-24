@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -401,25 +400,20 @@ func getMembersHandler(c echo.Context) error {
 	memberCache.Range(func(_, value interface{}) bool {
 		m := value.(Member)
 		if !m.Banned {
-			members = append(members, m)
-		}
-
-		var n int = 0
-		sequence := []int{}
-		// 数列 sequence[n+1] = 3 * sequence[n] + 1 を生成
-		for n < len(members) {
-			n = 3*n + 1
-			sequence = append(sequence, n)
-		}
-		// 数列 sequence を降順にする
-		sort.Sort(sort.Reverse(sort.IntSlice(sequence)))
-		// sequence[n]の分、離れた要素に対して挿入ソートを行う
-		for _, g := range sequence {
-			for i := g; i < len(members); i++ {
-				for j := i - g; j >= 0; j -= g {
-					if members[j].Name > members[j+g].Name {
-						members[j], members[j+g] = members[j+g], members[j]
-					} else {
+			// members = append(members, m)
+			for i := 0; i < len(members); i++ {
+				if order == "name_desc" {
+					if members[i].Name < m.Name {
+						members = append(members, Member{})
+						copy(members[i+1:], members[i:])
+						members[i] = m
+						break
+					}
+				} else {
+					if members[i].Name > m.Name {
+						members = append(members, Member{})
+						copy(members[i+1:], members[i:])
+						members[i] = m
 						break
 					}
 				}
