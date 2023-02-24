@@ -744,18 +744,21 @@ func getBooksHandler(c echo.Context) error {
 		Books: make([]GetBookResponse, len(books)),
 		Total: total,
 	}
-	// TODO: N+1
+
+	lengings := make([]Lending, len(books))
+	err = tx.SelectContext(c.Request().Context(), &lengings, "SELECT * FROM `lending`")
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	lengingsMap := make(map[string]struct{})
+	for _, lending := range lengings {
+		lengingsMap[lending.BookID] = struct{}{}
+	}
+
 	for i, book := range books {
 		res.Books[i].Book = book
-
-		err = tx.GetContext(c.Request().Context(), &Lending{}, "SELECT * FROM `lending` WHERE `book_id` = ?", book.ID)
-		if err == nil {
-			res.Books[i].Lending = true
-		} else if errors.Is(err, sql.ErrNoRows) {
-			res.Books[i].Lending = false
-		} else {
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-		}
+		_, ok := lengingsMap[book.ID]
+		res.Books[i].Lending = ok
 	}
 
 	_ = tx.Commit()
