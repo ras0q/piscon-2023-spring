@@ -747,7 +747,7 @@ func getBooksHandler(c echo.Context) error {
 	}
 
 	lengings := make([]Lending, len(books))
-	err = tx.SelectContext(c.Request().Context(), &lengings, "SELECT * FROM `lending`")
+	err = tx.SelectContext(c.Request().Context(), &lengings, "SELECT id FROM `lending`")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
