@@ -240,14 +240,19 @@ func decrypt(cipherText string) (string, error) {
 	return string(decryptedText), nil
 }
 
+var mux = sync.Mutex{}
+
 // QRコードを生成
 func generateQRCode(id string) ([]byte, error) {
+	mux.Lock()
+	defer mux.Unlock()
+
 	encryptedID, err := encrypt(id)
 	if err != nil {
 		return nil, err
 	}
 
-	qrCodeFileName := fmt.Sprintf("../images/qr-%s.png", id)
+	qrCodeFileName := "../images/qr.png"
 
 	/*
 		生成するQRコードの仕様
