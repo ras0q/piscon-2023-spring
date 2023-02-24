@@ -230,10 +230,9 @@ func generateQRCode(id string) ([]byte, error) {
 		 - バージョン5 (37x37ピクセル、マージン含め45x45ピクセル)
 		 - エラー訂正レベルM (15%)
 	*/
-	qr := qrcode.QRCode{
-		Content:       encryptedID,
-		Level:         qrcode.Medium,
-		VersionNumber: 5,
+	qr, err := qrcode.NewWithForcedVersion(encryptedID, 5, qrcode.Medium)
+	if err != nil {
+		return nil, err
 	}
 
 	return qr.PNG(1)
