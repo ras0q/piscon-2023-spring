@@ -311,7 +311,7 @@ func initializeHandler(c echo.Context) error {
 	}
 
 	// sc
-	go initCache()
+	initCache()
 
 	return c.JSON(http.StatusOK, InitializeHandlerResponse{
 		Language: "Go",
