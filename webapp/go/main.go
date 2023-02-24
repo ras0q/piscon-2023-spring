@@ -872,8 +872,8 @@ func postLendingsHandler(c echo.Context) error {
 	due := lendingTime.Add(LendingPeriod * time.Millisecond)
 	res := make([]PostLendingsResponse, len(req.BookIDs))
 
-	bookTitles := make([]string, len(req.BookIDs))
-	err = tx.SelectContext(c.Request().Context(), &bookTitles, "SELECT title FROM `book` WHERE `id` IN (?)", req.BookIDs)
+	books := make([]Book, len(req.BookIDs))
+	err = tx.SelectContext(c.Request().Context(), &books, "SELECT id, title FROM `book` WHERE `id` IN (?)", req.BookIDs)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return echo.NewHTTPError(http.StatusNotFound, err.Error())
@@ -882,8 +882,8 @@ func postLendingsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 	bookTitleMap := make(map[string]string)
-	for _, bookTitle := range bookTitles {
-		bookTitleMap[bookTitle] = bookTitle
+	for _, book := range books {
+		bookTitleMap[book.ID] = book.Title
 	}
 
 	// 貸し出し中かどうか確認
