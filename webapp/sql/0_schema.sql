@@ -8,6 +8,7 @@ CREATE TABLE `book` (
   `created_at` datetime(6) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+CREATE INDEX genre ON book(genre);
 
 DROP TABLE IF EXISTS `key`;
 

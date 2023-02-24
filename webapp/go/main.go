@@ -744,6 +744,7 @@ func getBooksHandler(c echo.Context) error {
 		Books: make([]GetBookResponse, len(books)),
 		Total: total,
 	}
+	// TODO: N+1
 	for i, book := range books {
 		res.Books[i].Book = book
 
