@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -403,31 +404,37 @@ func getMembersHandler(c echo.Context) error {
 			members = append(members, m)
 		}
 
-		// 挿入ソート
-		switch order {
-		case "name_asc":
-			for i := len(members) - 1; i > 0; i-- {
-				if members[i].Name < members[i-1].Name {
-					members[i], members[i-1] = members[i-1], members[i]
-				}
-			}
-		case "name_desc":
-			for i := len(members) - 1; i > 0; i-- {
-				if members[i].Name > members[i-1].Name {
-					members[i], members[i-1] = members[i-1], members[i]
-				}
-			}
-		// default is name_asc
-		default:
-			for i := len(members) - 1; i > 0; i-- {
-				if members[i].Name < members[i-1].Name {
-					members[i], members[i-1] = members[i-1], members[i]
+		var n int = 0
+		sequence := []int{}
+		// 数列 sequence[n+1] = 3 * sequence[n] + 1 を生成
+		for n < len(members) {
+			n = 3*n + 1
+			sequence = append(sequence, n)
+		}
+		// 数列 sequence を降順にする
+		sort.Sort(sort.Reverse(sort.IntSlice(sequence)))
+		// sequence[n]の分、離れた要素に対して挿入ソートを行う
+		for _, g := range sequence {
+			for i := g; i < len(members); i++ {
+				for j := i - g; j >= 0; j -= g {
+					if members[j].Name > members[j+g].Name {
+						members[j], members[j+g] = members[j+g], members[j]
+					} else {
+						break
+					}
 				}
 			}
 		}
 
 		return true
 	})
+
+	if order == "name_desc" {
+		for i := len(members)/2 - 1; i >= 0; i-- {
+			opp := len(members) - 1 - i
+			members[i], members[opp] = members[opp], members[i]
+		}
+	}
 
 	if s := (page - 1) * memberPageLimit; s < 0 || s >= len(members) {
 		return echo.NewHTTPError(http.StatusNotFound, "no members to show in this page")
