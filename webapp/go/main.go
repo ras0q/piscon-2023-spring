@@ -427,15 +427,8 @@ func getMembersHandler(c echo.Context) error {
 		return true
 	})
 
-	if order == "name_desc" {
-		for i := len(members)/2 - 1; i >= 0; i-- {
-			opp := len(members) - 1 - i
-			members[i], members[opp] = members[opp], members[i]
-		}
-	}
-
 	if s := (page - 1) * memberPageLimit; s < 0 || s >= len(members) {
-		return echo.NewHTTPError(http.StatusNotFound, "no members to show in this page")
+		return echo.NewHTTPError(http.StatusNotFound, "no members to show in this page (invalid index)")
 	}
 	end := len(members)
 	if page*memberPageLimit < end {
