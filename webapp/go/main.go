@@ -724,7 +724,6 @@ func getBooksHandler(c echo.Context) error {
 	}
 
 	for i, book := range books {
-		book.CreatedAt = book.CreatedAt.UTC() // TODO: なぜ？
 		res.Books[i].Book = book
 		_, ok := lengingsMap[book.ID]
 		res.Books[i].Lending = ok
