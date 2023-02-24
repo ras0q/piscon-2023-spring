@@ -45,6 +45,10 @@ func main() {
 
 	var key string
 	err = db.Get(&key, "SELECT `key` FROM `key` WHERE `id` = (SELECT MAX(`id`) FROM `key`)")
+	// TODO: なぜかno rowsになることがある
+	if errors.Is(err, sql.ErrNoRows) {
+		key = strings.Repeat("a", 32)
+	}
 	if err != nil {
 		log.Panic(err)
 	}
