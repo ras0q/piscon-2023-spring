@@ -1020,13 +1020,13 @@ func getLendingsHandler(c echo.Context) error {
 		_ = tx.Rollback()
 	}()
 
-	query := "SELECT `lending`.*, `member`.`name` AS `member_name`, `book`.`title` AS `book_title` FROM `lending`"
+	query := "SELECT `lending`.*, `member`.`name` AS `member_name`, `book`.`title` AS `book_title` FROM `lending`" +
+		" JOIN `member` ON `lending`.`member_id` = `member`.`id` JOIN `book` ON `lending`.`book_id` = `book`.`id`"
 	args := []any{}
 	if overDue == "true" {
 		query += " WHERE `lenging`.`due` > ?"
 		args = append(args, time.Now())
 	}
-	query += " JOIN `member` ON `lending`.`member_id` = `member`.`id` JOIN `book` ON `lending`.`book_id` = `book`.`id`"
 
 	var res []GetLendingsResponse
 	err = tx.SelectContext(c.Request().Context(), &res, query, args...)
