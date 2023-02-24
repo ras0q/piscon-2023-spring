@@ -395,7 +395,7 @@ func getMembersHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid order")
 	}
 
-	members := []Member{}
+	members := make([]Member, 0, 10000)
 	memberCache.Range(func(_, value interface{}) bool {
 		m := value.(Member)
 		if !m.Banned {
@@ -582,7 +582,7 @@ func postBooksHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	res := []Book{}
+	res := make([]Book, 0, len(reqSlice))
 	createdAt := time.Now().UTC()
 
 	tx, err := db.BeginTxx(c.Request().Context(), nil)
@@ -670,7 +670,7 @@ func getBooksHandler(c echo.Context) error {
 	}()
 
 	query := "SELECT COUNT(*) FROM `book` WHERE "
-	var args []any
+	args := make([]any, 0, 10)
 	if genre != "" {
 		query += "genre = ? AND "
 		args = append(args, genre)
