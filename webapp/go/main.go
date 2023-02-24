@@ -58,6 +58,7 @@ func main() {
 
 	e := echo.New()
 	e.Debug = true
+	e.JSONSerializer = &sonicJSONSerializer{}
 	e.Use(middleware.Logger())
 
 	api := e.Group("/api")
