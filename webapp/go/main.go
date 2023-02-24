@@ -1007,37 +1007,18 @@ func getLendingsHandler(c echo.Context) error {
 		_ = tx.Rollback()
 	}()
 
-	query := "SELECT * FROM `lending`"
+	query := "SELECT `lending`.*, `member`.`name` AS `member_name`, `book`.`title` AS `book_title` FROM `lending`"
 	args := []any{}
 	if overDue == "true" {
-		query += " WHERE `due` > ?"
+		query += " WHERE `lenging`.`due` > ?"
 		args = append(args, time.Now())
 	}
+	query += " JOIN ON `member` ON `lending`.`member_id` = `member`.`id` JOIN ON `book` ON `lending`.`book_id` = `book`.`id`"
 
-	var lendings []Lending
-	err = tx.SelectContext(c.Request().Context(), &lendings, query, args...)
+	var res []GetLendingsResponse
+	err = tx.SelectContext(c.Request().Context(), &res, query, args...)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-
-	// TODO: N+1
-	res := make([]GetLendingsResponse, len(lendings))
-	for i, lending := range lendings {
-		res[i].Lending = lending
-
-		var member Member
-		err = tx.GetContext(c.Request().Context(), &member, "SELECT * FROM `member` WHERE `id` = ?", lending.MemberID)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-		}
-		res[i].MemberName = member.Name
-
-		var book Book
-		err = tx.GetContext(c.Request().Context(), &book, "SELECT * FROM `book` WHERE `id` = ?", lending.BookID)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-		}
-		res[i].BookTitle = book.Title
 	}
 
 	_ = tx.Commit()
