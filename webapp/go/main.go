@@ -872,46 +872,73 @@ func postLendingsHandler(c echo.Context) error {
 	due := lendingTime.Add(LendingPeriod * time.Millisecond)
 	res := make([]PostLendingsResponse, len(req.BookIDs))
 
-	// TODO: N+1
-	for i, bookID := range req.BookIDs {
-		// 蔵書の存在確認
-		var book Book
-		err = tx.GetContext(c.Request().Context(), &book, "SELECT * FROM `book` WHERE `id` = ?", bookID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return echo.NewHTTPError(http.StatusNotFound, err.Error())
-			}
-
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	bookTitles := make([]string, len(req.BookIDs))
+	err = tx.SelectContext(c.Request().Context(), &bookTitles, "SELECT title FROM `book` WHERE `id` IN (?)", req.BookIDs)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return echo.NewHTTPError(http.StatusNotFound, err.Error())
 		}
 
-		// 貸し出し中かどうか確認
-		var lending Lending
-		err = tx.GetContext(c.Request().Context(), &lending, "SELECT * FROM `lending` WHERE `book_id` = ?", bookID)
-		if err == nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	bookTitleMap := make(map[string]string)
+	for _, bookTitle := range bookTitles {
+		bookTitleMap[bookTitle] = bookTitle
+	}
+
+	// 貸し出し中かどうか確認
+	lendings := make([]Lending, len(req.BookIDs))
+	err = tx.SelectContext(c.Request().Context(), &lendings, "SELECT * FROM `lending` WHERE `book_id` IN (?)", req.BookIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	lendingMap := make(map[string]Lending)
+	for _, lending := range lendings {
+		lendingMap[lending.BookID] = lending
+	}
+
+	type insertLendingColmuns struct {
+		ID        string    `db:"id"`
+		BookID    string    `db:"book_id"`
+		MemberID  string    `db:"member_id"`
+		Due       time.Time `db:"due"`
+		CreatedAt time.Time `db:"created_at"`
+	}
+	rows := make([]insertLendingColmuns, len(req.BookIDs))
+	for i, bookID := range req.BookIDs {
+		bookTitle, ok := bookTitleMap[bookID]
+		if !ok {
+			return echo.NewHTTPError(http.StatusNotFound, "book not found")
+		}
+
+		if _, ok := lendingMap[bookID]; ok {
 			return echo.NewHTTPError(http.StatusConflict, "this book is already lent")
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
 
 		id := generateID()
-
-		// 貸し出し
-		_, err = tx.ExecContext(c.Request().Context(),
-			"INSERT INTO `lending` (`id`, `book_id`, `member_id`, `due`, `created_at`) VALUES (?, ?, ?, ?, ?)",
-			id, bookID, req.MemberID, due, lendingTime)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-		}
-
-		err := tx.GetContext(c.Request().Context(), &res[i], "SELECT * FROM `lending` WHERE `id` = ?", id)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		rows[i] = insertLendingColmuns{
+			ID:        id,
+			BookID:    bookID,
+			MemberID:  req.MemberID,
+			Due:       due,
+			CreatedAt: lendingTime,
 		}
 
 		res[i].MemberName = member.Name
-		res[i].BookTitle = book.Title
+		res[i].BookTitle = bookTitle
 	}
+
+	// 貸し出し
+	_, err = tx.NamedExecContext(c.Request().Context(), "INSERT INTO `lending` (`id`, `book_id`, `member_id`, `due`, `created_at`) VALUES (:id, :book_id, :member_id, :due, :created_at)", rows)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	// TODO: 確認
+	// err := tx.GetContext(c.Request().Context(), &res[i], "SELECT * FROM `lending` WHERE `id` = ?", id)
+	// if err != nil {
+	// 	return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	// }
 
 	_ = tx.Commit()
 
