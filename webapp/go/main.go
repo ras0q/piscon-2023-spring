@@ -1013,7 +1013,7 @@ func getLendingsHandler(c echo.Context) error {
 		query += " WHERE `lenging`.`due` > ?"
 		args = append(args, time.Now())
 	}
-	query += " JOIN ON `member` ON `lending`.`member_id` = `member`.`id` JOIN ON `book` ON `lending`.`book_id` = `book`.`id`"
+	query += " JOIN `member` ON `lending`.`member_id` = `member`.`id` JOIN `book` ON `lending`.`book_id` = `book`.`id`"
 
 	var res []GetLendingsResponse
 	err = tx.SelectContext(c.Request().Context(), &res, query, args...)
