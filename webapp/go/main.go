@@ -253,9 +253,9 @@ func generateQRCode(id string) ([]byte, error) {
 		 - バージョン6 (41x41ピクセル、マージン含め49x49ピクセル)
 		 - エラー訂正レベルM (15%)
 	*/
-	_, err = exec.
-		Command("qrencode", "-o", qrCodeFileName, "-t", "PNG", "-s", "1", "-v", "6", "--strict-version", "-l", "M", encryptedID).
-		Output()
+	err = exec.
+		Command("sh", "-c", fmt.Sprintf("echo \"%s\" | qrencode -o %s -t PNG -s 1 -v 6 --strict-version -l M", encryptedID, qrCodeFileName)).
+		Run()
 	if err != nil {
 		return nil, err
 	}
