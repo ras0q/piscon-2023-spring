@@ -6,3 +6,6 @@ WHEN=$(date +%Y%m%d-%H%M%S)
 [ -f $HTTPLOG_PATH ] && sudo mkdir -p $LOGS_DIR/$WHEN && sudo mv $HTTPLOG_PATH $LOGS_DIR/$WHEN
 
 # deploy
+cd $REPO_DIR/webapp/go
+go build -o ./$APP
+sudo systemctl restart $SERVICE
