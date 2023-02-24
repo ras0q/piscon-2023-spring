@@ -284,9 +284,6 @@ func initializeHandler(c echo.Context) error {
 		}
 	}()
 
-	// sc
-	go initCache()
-
 	var req InitializeHandlerRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
@@ -312,6 +309,9 @@ func initializeHandler(c echo.Context) error {
 	if err != nil {
 		log.Panic(err.Error())
 	}
+
+	// sc
+	go initCache()
 
 	return c.JSON(http.StatusOK, InitializeHandlerResponse{
 		Language: "Go",
