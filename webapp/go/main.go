@@ -981,8 +981,8 @@ func postLendingsHandler(c echo.Context) error {
 
 type GetLendingsResponse struct {
 	Lending
-	MemberName string `json:"member_name"`
-	BookTitle  string `json:"book_title"`
+	MemberName string `json:"member_name" db:"member_name"`
+	BookTitle  string `json:"book_title" db:"book_title"`
 }
 
 func getLendingsHandler(c echo.Context) error {
