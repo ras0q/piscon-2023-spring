@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -403,24 +402,32 @@ func getMembersHandler(c echo.Context) error {
 		if !m.Banned {
 			members = append(members, m)
 		}
+
+		// 挿入ソート
+		switch order {
+		case "name_asc":
+			for i := len(members) - 1; i > 0; i-- {
+				if members[i].Name < members[i-1].Name {
+					members[i], members[i-1] = members[i-1], members[i]
+				}
+			}
+		case "name_desc":
+			for i := len(members) - 1; i > 0; i-- {
+				if members[i].Name > members[i-1].Name {
+					members[i], members[i-1] = members[i-1], members[i]
+				}
+			}
+		// default is name_asc
+		default:
+			for i := len(members) - 1; i > 0; i-- {
+				if members[i].Name < members[i-1].Name {
+					members[i], members[i-1] = members[i-1], members[i]
+				}
+			}
+		}
+
 		return true
 	})
-
-	switch order {
-	case "name_asc":
-		sort.Slice(members, func(i, j int) bool {
-			return members[i].Name < members[j].Name
-		})
-	case "name_desc":
-		sort.Slice(members, func(i, j int) bool {
-			return members[i].Name > members[j].Name
-		})
-	// default is name_asc
-	default:
-		sort.Slice(members, func(i, j int) bool {
-			return members[i].Name < members[j].Name
-		})
-	}
 
 	if s := (page - 1) * memberPageLimit; s < 0 || s >= len(members) {
 		return echo.NewHTTPError(http.StatusNotFound, "no members to show in this page")
