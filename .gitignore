@@ -7,3 +7,5 @@
 .ssh
 .sudo_as_admin_successful
 go
+!webapp/go
+.lesshst

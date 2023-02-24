@@ -1,0 +1,13 @@
+[user]
+	name = server
+	email = github-actions[bot]@users.noreply.github.com
+[core]
+	editor = vim
+[push]
+	default = current
+[init]
+	defaultbranch = main
+[fetch]
+	prune = true
+[alias]
+	lo = log --oneline
