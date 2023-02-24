@@ -949,7 +949,7 @@ func postLendingsHandler(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
-	err = tx.GetContext(c.Request().Context(), &newLendings, sqlStr, params...)
+	err = tx.SelectContext(c.Request().Context(), &newLendings, sqlStr, params...)
 	if err != nil || len(newLendings) != len(lendingIDs) {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
