@@ -12,3 +12,4 @@ go
 .lesshst
 isulibrary
 logs/
+.mysql_history
