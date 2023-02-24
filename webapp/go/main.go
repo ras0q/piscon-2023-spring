@@ -408,16 +408,16 @@ func getMembersHandler(c echo.Context) error {
 			for i := 0; i < len(members); i++ {
 				if order == "name_desc" {
 					if members[i].Name < m.Name {
-						members = append(members, Member{})
-						copy(members[i+1:], members[i:len(members)-1])
-						members[i] = m
+						restMembers := members[i:]
+						members = append(members[:i], m)
+						members = append(members, restMembers...)
 						break
 					}
 				} else {
 					if members[i].Name > m.Name {
-						members = append(members, Member{})
-						copy(members[i+1:], members[i:len(members)-1])
-						members[i] = m
+						restMembers := members[i:]
+						members = append(members[:i], m)
+						members = append(members, restMembers...)
 						break
 					}
 				}
