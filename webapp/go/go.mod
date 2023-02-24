@@ -7,6 +7,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kaz/pprotein v1.1.0
 	github.com/labstack/echo/v4 v4.10.2
+	github.com/motoki317/sc v1.5.0
 	github.com/oklog/ulid/v2 v2.1.0
 )
 

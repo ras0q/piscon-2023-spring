@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -23,6 +24,7 @@ import (
 	"github.com/kaz/pprotein/integration/echov4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/motoki317/sc"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -90,7 +92,31 @@ func main() {
 	// TODO: 後で消す
 	echov4.Integrate(e)
 
+	// sc
+	initCache()
+
 	e.Logger.Fatal(e.Start(":8080"))
+}
+
+var (
+	bookCache *sc.Cache[string, Book]
+)
+
+func initCache() {
+	_bookCache, err := sc.New(func(ctx context.Context, bookID string) (Book, error) {
+		book := Book{}
+		err := db.GetContext(ctx, &book, "SELECT * FROM `book` WHERE `id` = ?", bookID)
+		if err != nil {
+			return Book{}, err
+		}
+
+		return book, nil
+	}, 1*time.Minute, 2*time.Minute)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	bookCache = _bookCache
 }
 
 /*
@@ -590,6 +616,7 @@ func postBooksHandler(c echo.Context) error {
 		_ = tx.Rollback()
 	}()
 
+	// TODO: N+1
 	for _, req := range reqSlice {
 		if req.Title == "" || req.Author == "" {
 			return echo.NewHTTPError(http.StatusBadRequest, "title, author is required")
@@ -607,8 +634,7 @@ func postBooksHandler(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
 
-		var record Book
-		err = tx.GetContext(c.Request().Context(), &record, "SELECT * FROM `book` WHERE `id` = ?", id)
+		record, err := bookCache.Get(c.Request().Context(), id)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
@@ -760,8 +786,7 @@ func getBookHandler(c echo.Context) error {
 		_ = tx.Rollback()
 	}()
 
-	book := Book{}
-	err = tx.GetContext(c.Request().Context(), &book, "SELECT * FROM `book` WHERE `id` = ?", id)
+	book, err := bookCache.Get(c.Request().Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return echo.NewHTTPError(http.StatusNotFound, err.Error())
@@ -796,7 +821,7 @@ func getBookQRCodeHandler(c echo.Context) error {
 	}
 
 	// 蔵書の存在確認
-	err := db.GetContext(c.Request().Context(), &Book{}, "SELECT * FROM `book` WHERE `id` = ?", id)
+	_, err := bookCache.Get(c.Request().Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return echo.NewHTTPError(http.StatusNotFound, err.Error())
@@ -995,6 +1020,7 @@ func getLendingsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
+	// TODO: N+1
 	res := make([]GetLendingsResponse, len(lendings))
 	for i, lending := range lendings {
 		res[i].Lending = lending
