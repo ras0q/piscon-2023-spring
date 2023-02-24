@@ -1,0 +1,11 @@
+#!/bin/sh
+
+if [ $1 = "on" ]; then
+  isumysql -e "set global slow_query_log_file = $SLOWLOG_PATH; set global long_query_time = 0; set global slow_query_log = ON;"
+elif [ $1 = "off" ]; then
+  isumysql -e "set global slow_query_log = OFF;"
+elif [ $1 = "tail" ]; then
+  tail -f $PPROTEIN_SLOWLOG
+else
+  echo "Usage: isuslow [on|off|tail]"
+fi

@@ -117,3 +117,16 @@ if ! shopt -oq posix; then
 fi
 
 export PATH=$PATH:/usr/local/go/bin
+export REPO_URL=git@github.com:ras0q/piscon-2023-spring.git
+export REPO_DIR=~
+export APP=isulibrary
+export SERVICE=isulibrary.go.service
+export SERVER_NUM=1
+export DB_ENV_PATH=~/env.sh
+export HTTPLOG_PATH=/var/log/nginx/access.log
+export SLOWLOG_PATH=/var/log/mysql/mysql-slow.log
+export LOGS_DIR=~/logs
+export PPROTEIN_HTTPLOG=/var/log/nginx/access.log
+export PPROTEIN_SLOWLOG=/var/log/mysql/mysql-slow.log
+export PPROTEIN_GIT_REPOSITORY=~
+export PATH=$PATH:~/bin
