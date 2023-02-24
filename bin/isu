@@ -5,6 +5,10 @@ WHEN=$(date +%Y%m%d-%H%M%S)
 [ -f $SLOWLOG_PATH ] && sudo mkdir -p $LOGS_DIR/$WHEN && sudo mv $SLOWLOG_PATH $LOGS_DIR/$WHEN
 [ -f $HTTPLOG_PATH ] && sudo mkdir -p $LOGS_DIR/$WHEN && sudo mv $HTTPLOG_PATH $LOGS_DIR/$WHEN
 
+# restart mysql & nginx
+sudo systemctl restart mysql
+sudo systemctl restart nginx
+
 # turn on logging
 isuslow on
 
