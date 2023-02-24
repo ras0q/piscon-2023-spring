@@ -27,7 +27,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/oklog/ulid/v2"
-	"github.com/skip2/go-qrcode"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -245,6 +244,8 @@ func generateQRCode(id string) ([]byte, error) {
 		return nil, err
 	}
 
+	qrCodeFileName := fmt.Sprintf("../images/qr-%s.png", id)
+
 	/*
 		生成するQRコードの仕様
 		 - PNGフォーマット
@@ -252,12 +253,21 @@ func generateQRCode(id string) ([]byte, error) {
 		 - バージョン6 (41x41ピクセル、マージン含め49x49ピクセル)
 		 - エラー訂正レベルM (15%)
 	*/
-	qr, err := qrcode.NewWithForcedVersion(encryptedID, 6, qrcode.Medium)
+	_, err = exec.
+		Command("qrencode", "-o", qrCodeFileName, "-t", "PNG", "-s", "1", "-v", "6", "--strict-version", "-l", "M", encryptedID).
+		Output()
 	if err != nil {
 		return nil, err
 	}
 
-	return qr.PNG(1)
+	file, err := os.Open(qrCodeFileName)
+	if err != nil {
+		return nil, err
+	}
+
+	defer file.Close()
+
+	return io.ReadAll(file)
 }
 
 /*
