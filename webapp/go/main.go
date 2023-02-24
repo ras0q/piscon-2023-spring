@@ -822,15 +822,6 @@ func getBookQRCodeHandler(c echo.Context) error {
 	}
 
 	eg := errgroup.Group{}
-
-	eg.Go(func() error {
-		// 蔵書の存在確認
-		if _, ok := bookCache.Load(id); !ok {
-			return echo.NewHTTPError(http.StatusNotFound, "book not found")
-		}
-		return nil
-	})
-
 	var qrCode []byte
 	eg.Go(func() error {
 		_qrCode, err := generateQRCode(id)
@@ -840,6 +831,11 @@ func getBookQRCodeHandler(c echo.Context) error {
 		qrCode = _qrCode
 		return nil
 	})
+
+	// 蔵書の存在確認
+	if _, ok := bookCache.Load(id); !ok {
+		return echo.NewHTTPError(http.StatusNotFound, "book not found")
+	}
 
 	if err := eg.Wait(); err != nil {
 		return err
