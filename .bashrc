@@ -130,3 +130,4 @@ export PPROTEIN_HTTPLOG=/var/log/nginx/access.log
 export PPROTEIN_SLOWLOG=/var/log/mysql/mysql-slow.log
 export PPROTEIN_GIT_REPOSITORY=~
 export PATH=$PATH:~/bin
+export PATH=$PATH:~/bin

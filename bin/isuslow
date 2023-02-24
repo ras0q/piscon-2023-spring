@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/bash
 
 if [ $1 = "on" ]; then
   isumysql -e "set global slow_query_log_file = $SLOWLOG_PATH; set global long_query_time = 0; set global slow_query_log = ON;"

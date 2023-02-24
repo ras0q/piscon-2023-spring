@@ -11,3 +11,4 @@ go
 !webapp/go
 .lesshst
 isulibrary
+logs/
