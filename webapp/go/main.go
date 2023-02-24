@@ -405,28 +405,25 @@ func getMembersHandler(c echo.Context) error {
 	memberCache.Range(func(_, value interface{}) bool {
 		m := value.(Member)
 		if !m.Banned {
-			if len(members) == 0 {
-				members = append(members, m)
-				return true
-			}
-
 			for i := 0; i < len(members); i++ {
 				if order == "name_desc" {
 					if members[i].Name < m.Name {
 						restMembers := members[i:]
 						members = append(members[:i], m)
 						members = append(members, restMembers...)
-						break
+						return true
 					}
 				} else {
 					if members[i].Name > m.Name {
 						restMembers := members[i:]
 						members = append(members[:i], m)
 						members = append(members, restMembers...)
-						break
+						return true
 					}
 				}
 			}
+
+			members = append(members, m)
 		}
 
 		return true
