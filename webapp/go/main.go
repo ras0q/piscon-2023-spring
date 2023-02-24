@@ -24,7 +24,6 @@ import (
 	"github.com/kaz/pprotein/integration/echov4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/motoki317/sc"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -99,36 +98,17 @@ func main() {
 }
 
 var (
-	bookCache *sc.Cache[string, Book]
+	bookCache sync.Map
 )
 
 func initCache() {
-	_bookCache, err := sc.New(func(ctx context.Context, bookID string) (Book, error) {
-		book := Book{}
-		err := db.GetContext(ctx, &book, "SELECT * FROM `book` WHERE `id` = ?", bookID)
-		if err != nil {
-			return Book{}, err
-		}
-
-		return book, nil
-	}, 1*time.Minute, 2*time.Minute)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	bookCache = _bookCache
-
 	books := []Book{}
-	if err = db.SelectContext(context.Background(), &books, "SELECT id FROM `book`"); err != nil {
+	if err := db.SelectContext(context.Background(), &books, "SELECT * FROM `book`"); err != nil {
 		log.Panic(err)
 	}
 
 	for _, book := range books {
-		go func(bookID string) {
-			if _, err := bookCache.Get(context.Background(), bookID); err != nil {
-				log.Panic(err)
-			}
-		}(book.ID)
+		bookCache.Store(book.ID, book)
 	}
 }
 
@@ -643,18 +623,23 @@ func postBooksHandler(c echo.Context) error {
 
 		id := generateID()
 
-		_, err := tx.ExecContext(c.Request().Context(),
-			"INSERT INTO `book` (`id`, `title`, `author`, `genre`, `created_at`) VALUES (?, ?, ?, ?, ?)",
-			id, req.Title, req.Author, req.Genre, createdAt)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-		}
+		go func() {
+			_, err := tx.ExecContext(c.Request().Context(),
+				"INSERT INTO `book` (`id`, `title`, `author`, `genre`, `created_at`) VALUES (?, ?, ?, ?, ?)",
+				id, req.Title, req.Author, req.Genre, createdAt)
+			if err != nil {
+				log.Println(err)
+			}
+		}()
 
-		var record Book
-		err = tx.GetContext(c.Request().Context(), &record, "SELECT * FROM `book` WHERE `id` = ?", id)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		record := Book{
+			ID:        id,
+			Title:     req.Title,
+			Author:    req.Author,
+			Genre:     req.Genre,
+			CreatedAt: createdAt,
 		}
+		bookCache.Store(id, record)
 
 		res = append(res, record)
 	}
@@ -803,17 +788,13 @@ func getBookHandler(c echo.Context) error {
 		_ = tx.Rollback()
 	}()
 
-	book, err := bookCache.Get(c.Request().Context(), id)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return echo.NewHTTPError(http.StatusNotFound, err.Error())
-		}
-
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	book, ok := bookCache.Load(id)
+	if !ok {
+		return echo.NewHTTPError(http.StatusNotFound, "book not found")
 	}
 
 	res := GetBookResponse{
-		Book: book,
+		Book: book.(Book),
 	}
 	var _lendingID string
 	err = tx.GetContext(c.Request().Context(), &_lendingID, "SELECT id FROM `lending` WHERE `book_id` = ? LIMIT 1", id)
@@ -838,13 +819,8 @@ func getBookQRCodeHandler(c echo.Context) error {
 	}
 
 	// 蔵書の存在確認
-	_, err := bookCache.Get(c.Request().Context(), id)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return echo.NewHTTPError(http.StatusNotFound, err.Error())
-		}
-
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	if _, ok := bookCache.Load(id); !ok {
+		return echo.NewHTTPError(http.StatusNotFound, "book not found")
 	}
 
 	qrFileLock.Lock()
