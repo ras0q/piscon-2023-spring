@@ -40,4 +40,4 @@ CREATE TABLE `member` (
   `created_at` datetime(6) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
-CREATE INDEX banned_name ON member(banned, name);
+CREATE INDEX banned_name ON member(banned, name ASC);
