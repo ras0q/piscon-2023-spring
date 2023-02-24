@@ -415,6 +415,9 @@ func getMembersHandler(c echo.Context) error {
 		})
 	}
 
+	if s := (page - 1) * memberPageLimit; s < 0 || s >= len(members) {
+		return echo.NewHTTPError(http.StatusNotFound, "no members to show in this page")
+	}
 	end := len(members)
 	if page*memberPageLimit < end {
 		end = page * memberPageLimit
