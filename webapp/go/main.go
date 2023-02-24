@@ -122,6 +122,8 @@ func initCache() {
 		log.Panic(err)
 	}
 
+	memberCount.Store(int64(len(members)))
+
 	for _, member := range members {
 		memberCache.Store(member.ID, member)
 	}
