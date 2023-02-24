@@ -647,7 +647,8 @@ func postBooksHandler(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
 
-		record, err := bookCache.Get(c.Request().Context(), id)
+		var record Book
+		err = tx.GetContext(c.Request().Context(), &record, "SELECT * FROM `book` WHERE `id` = ?", id)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
