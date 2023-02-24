@@ -39,3 +39,4 @@ CREATE TABLE `member` (
   `created_at` datetime(6) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+ALTER TABLE member ADD INDEX name(name);
