@@ -117,6 +117,15 @@ func initCache() {
 	for _, book := range books {
 		bookCache.Store(book.ID, book)
 	}
+
+	members := []Member{}
+	if err := db.SelectContext(context.Background(), &members, "SELECT * FROM `member`"); err != nil {
+		log.Panic(err)
+	}
+
+	for _, member := range members {
+		memberCache.Store(member.ID, member)
+	}
 }
 
 func getMember(id string, allowBanned bool) (Member, bool) {
