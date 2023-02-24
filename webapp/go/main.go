@@ -348,14 +348,12 @@ func postMemberHandler(c echo.Context) error {
 	}
 	memberCache.Store(id, res)
 
-	go func(m Member) {
-		_, err := db.ExecContext(c.Request().Context(),
-			"INSERT INTO `member` (`id`, `name`, `address`, `phone_number`, `banned`, `created_at`) VALUES (?, ?, ?, ?, false, ?)",
-			m.ID, m.Name, m.Address, m.PhoneNumber, m.CreatedAt)
-		if err != nil {
-			log.Println(http.StatusInternalServerError, err.Error())
-		}
-	}(res)
+	_, err := db.ExecContext(c.Request().Context(),
+		"INSERT INTO `member` (`id`, `name`, `address`, `phone_number`, `banned`, `created_at`) VALUES (?, ?, ?, ?, false, ?)",
+		res.ID, res.Name, res.Address, res.PhoneNumber, res.CreatedAt)
+	if err != nil {
+		log.Println(http.StatusInternalServerError, err.Error())
+	}
 
 	return c.JSON(http.StatusCreated, res)
 }
@@ -481,31 +479,28 @@ func patchMemberHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "member not found")
 	}
 
-	go func() {
+	query := "UPDATE `member` SET "
+	params := []any{}
+	if req.Name != "" {
+		query += "`name` = ?, "
+		params = append(params, req.Name)
+	}
+	if req.Address != "" {
+		query += "`address` = ?, "
+		params = append(params, req.Address)
+	}
+	if req.PhoneNumber != "" {
+		query += "`phone_number` = ?, "
+		params = append(params, req.PhoneNumber)
+	}
+	query = strings.TrimSuffix(query, ", ")
+	query += " WHERE `id` = ?"
+	params = append(params, id)
 
-		query := "UPDATE `member` SET "
-		params := []any{}
-		if req.Name != "" {
-			query += "`name` = ?, "
-			params = append(params, req.Name)
-		}
-		if req.Address != "" {
-			query += "`address` = ?, "
-			params = append(params, req.Address)
-		}
-		if req.PhoneNumber != "" {
-			query += "`phone_number` = ?, "
-			params = append(params, req.PhoneNumber)
-		}
-		query = strings.TrimSuffix(query, ", ")
-		query += " WHERE `id` = ?"
-		params = append(params, id)
-
-		_, err := db.ExecContext(c.Request().Context(), query, params...)
-		if err != nil {
-			log.Println(err)
-		}
-	}()
+	_, err := db.ExecContext(c.Request().Context(), query, params...)
+	if err != nil {
+		log.Println(err)
+	}
 
 	return c.NoContent(http.StatusNoContent)
 }
