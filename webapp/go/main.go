@@ -25,6 +25,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/oklog/ulid/v2"
+	"github.com/skip2/go-qrcode"
 )
 
 func main() {
@@ -215,8 +216,6 @@ func decrypt(cipherText string) (string, error) {
 	return string(decryptedText), nil
 }
 
-const qrCodeFileName = "../images/qr.png"
-
 // QRコードを生成
 func generateQRCode(id string) ([]byte, error) {
 	encryptedID, err := encrypt(id)
@@ -231,20 +230,13 @@ func generateQRCode(id string) ([]byte, error) {
 		 - バージョン5 (37x37ピクセル、マージン含め45x45ピクセル)
 		 - エラー訂正レベルM (15%)
 	*/
-	_, err = exec.
-		Command("qrencode", "-o", qrCodeFileName, "-t", "PNG", "-s", "1", "-v", "5", "--strict-version", "-l", "M", encryptedID).
-		Output()
-	if err != nil {
-		return nil, err
+	qr := qrcode.QRCode{
+		Content:       encryptedID,
+		Level:         qrcode.Medium,
+		VersionNumber: 5,
 	}
 
-	file, err := os.Open(qrCodeFileName)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	return io.ReadAll(file)
+	return qr.PNG(1)
 }
 
 /*
