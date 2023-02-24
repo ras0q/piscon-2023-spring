@@ -26,6 +26,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/oklog/ulid/v2"
 	"github.com/skip2/go-qrcode"
+	"golang.org/x/sync/errgroup"
 )
 
 func main() {
@@ -188,8 +189,7 @@ func getEnvOrDefault(key string, defaultValue string) string {
 }
 
 var (
-	block      cipher.Block
-	qrFileLock sync.Mutex
+	block cipher.Block
 )
 
 // AES + CTRモード + base64エンコードでテキストを暗号化
@@ -561,22 +561,33 @@ func getMemberQRCodeHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "id is required")
 	}
 
-	// 会員の存在確認
-	err := db.GetContext(c.Request().Context(), &Member{}, "SELECT * FROM `member` WHERE `id` = ? AND `banned` = false", id)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return echo.NewHTTPError(http.StatusNotFound, err.Error())
+	eg := errgroup.Group{}
+
+	eg.Go(func() error {
+		// 会員の存在確認
+		err := db.GetContext(c.Request().Context(), &Member{}, "SELECT * FROM `member` WHERE `id` = ? AND `banned` = false", id)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return echo.NewHTTPError(http.StatusNotFound, err.Error())
+			}
+
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 		}
+		return nil
+	})
 
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
+	var qrCode []byte
+	eg.Go(func() error {
+		_qrCode, err := generateQRCode(id)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
+		qrCode = _qrCode
+		return nil
+	})
 
-	qrFileLock.Lock()
-	defer qrFileLock.Unlock()
-
-	qrCode, err := generateQRCode(id)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	if err := eg.Wait(); err != nil {
+		return err
 	}
 
 	return c.Blob(http.StatusOK, "image/png", qrCode)
@@ -812,17 +823,28 @@ func getBookQRCodeHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "id is required")
 	}
 
-	// 蔵書の存在確認
-	if _, ok := bookCache.Load(id); !ok {
-		return echo.NewHTTPError(http.StatusNotFound, "book not found")
-	}
+	eg := errgroup.Group{}
 
-	qrFileLock.Lock()
-	defer qrFileLock.Unlock()
+	eg.Go(func() error {
+		// 蔵書の存在確認
+		if _, ok := bookCache.Load(id); !ok {
+			return echo.NewHTTPError(http.StatusNotFound, "book not found")
+		}
+		return nil
+	})
 
-	qrCode, err := generateQRCode(id)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	var qrCode []byte
+	eg.Go(func() error {
+		_qrCode, err := generateQRCode(id)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
+		qrCode = _qrCode
+		return nil
+	})
+
+	if err := eg.Wait(); err != nil {
+		return err
 	}
 
 	return c.Blob(http.StatusOK, "image/png", qrCode)

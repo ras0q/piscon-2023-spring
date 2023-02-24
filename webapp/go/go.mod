@@ -10,6 +10,7 @@ require (
 	github.com/labstack/echo/v4 v4.10.2
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
 )
 
 require (
