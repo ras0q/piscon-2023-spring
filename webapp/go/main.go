@@ -30,6 +30,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var jst = time.FixedZone("Asia/Tokyo", 9*60*60)
+
 func main() {
 	host := getEnvOrDefault("DB_HOST", "localhost")
 	port := getEnvOrDefault("DB_PORT", "3306")
@@ -359,7 +361,7 @@ func postMemberHandler(c echo.Context) error {
 		Address:     req.Address,
 		PhoneNumber: req.PhoneNumber,
 		Banned:      false,
-		CreatedAt:   time.Now().UTC(),
+		CreatedAt:   time.Now().In(jst),
 	}
 
 	memberCache.Store(id, res)
@@ -583,7 +585,7 @@ func postBooksHandler(c echo.Context) error {
 	}
 
 	res := make([]Book, 0, len(reqSlice))
-	createdAt := time.Now().UTC()
+	createdAt := time.Now().In(jst)
 
 	tx, err := db.BeginTxx(c.Request().Context(), nil)
 	if err != nil {
@@ -855,7 +857,7 @@ func postLendingsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "member not found")
 	}
 
-	lendingTime := time.Now().UTC()
+	lendingTime := time.Now()
 	due := lendingTime.Add(LendingPeriod * time.Millisecond)
 	res := make([]PostLendingsResponse, len(req.BookIDs))
 
@@ -967,7 +969,7 @@ func getLendingsHandler(c echo.Context) error {
 	args := []any{}
 	if overDue == "true" {
 		query += " WHERE `due` > ?"
-		args = append(args, time.Now().UTC())
+		args = append(args, time.Now())
 	}
 
 	var res []GetLendingsResponse
