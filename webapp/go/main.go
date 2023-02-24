@@ -246,10 +246,10 @@ func generateQRCode(id string) ([]byte, error) {
 		生成するQRコードの仕様
 		 - PNGフォーマット
 		 - QRコードの1モジュールは1ピクセルで表現
-		 - バージョン5 (37x37ピクセル、マージン含め45x45ピクセル)
+		 - バージョン6 (41x41ピクセル、マージン含め49x49ピクセル)
 		 - エラー訂正レベルM (15%)
 	*/
-	qr, err := qrcode.NewWithForcedVersion(encryptedID, 5, qrcode.Medium)
+	qr, err := qrcode.NewWithForcedVersion(encryptedID, 6, qrcode.Medium)
 	if err != nil {
 		return nil, err
 	}
