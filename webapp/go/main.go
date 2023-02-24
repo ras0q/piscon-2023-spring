@@ -1028,7 +1028,7 @@ func getLendingsHandler(c echo.Context) error {
 		" JOIN `member` ON `lending`.`member_id` = `member`.`id` JOIN `book` ON `lending`.`book_id` = `book`.`id`"
 	args := []any{}
 	if overDue == "true" {
-		query += " WHERE `lenging`.`due` > ?"
+		query += " WHERE `due` > ?"
 		args = append(args, time.Now())
 	}
 
