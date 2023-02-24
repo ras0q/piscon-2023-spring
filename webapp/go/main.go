@@ -388,8 +388,6 @@ func getMembersHandler(c echo.Context) error {
 		query += "ORDER BY `name` ASC "
 	case "name_desc":
 		query += " ORDER BY `name` DESC "
-	default:
-		query += "ORDER BY `name` ASC "
 	}
 	query += "LIMIT ? OFFSET ?"
 
