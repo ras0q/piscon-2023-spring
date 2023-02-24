@@ -859,7 +859,7 @@ func postLendingsHandler(c echo.Context) error {
 
 	// 会員の存在確認
 	var member Member
-	err = tx.GetContext(c.Request().Context(), &member, "SELECT * FROM `member` WHERE `id` = ?", req.MemberID)
+	err = tx.GetContext(c.Request().Context(), &member, "SELECT * FROM `member` WHERE `id` = ? LIMIT 1", req.MemberID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return echo.NewHTTPError(http.StatusNotFound, err.Error())
@@ -872,6 +872,7 @@ func postLendingsHandler(c echo.Context) error {
 	due := lendingTime.Add(LendingPeriod * time.Millisecond)
 	res := make([]PostLendingsResponse, len(req.BookIDs))
 
+	// TODO: N+1
 	for i, bookID := range req.BookIDs {
 		// 蔵書の存在確認
 		var book Book
