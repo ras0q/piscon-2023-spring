@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -103,6 +104,7 @@ func main() {
 var (
 	bookCache   sync.Map
 	memberCache sync.Map
+	memberCount atomic.Int32
 )
 
 func initCache() {
@@ -347,6 +349,7 @@ func postMemberHandler(c echo.Context) error {
 		CreatedAt:   time.Now(),
 	}
 	memberCache.Store(id, res)
+	memberCount.Add(1)
 
 	_, err := db.ExecContext(c.Request().Context(),
 		"INSERT INTO `member` (`id`, `name`, `address`, `phone_number`, `banned`, `created_at`) VALUES (?, ?, ?, ?, false, ?)",
@@ -413,17 +416,11 @@ func getMembersHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "no members to show in this page")
 	}
 
-	var total int
-	memberCache.Range(func(_, _ interface{}) bool {
-		total++
-		return true
-	})
-
 	_ = tx.Commit()
 
 	return c.JSON(http.StatusOK, GetMembersResponse{
 		Members: members,
-		Total:   total,
+		Total:   int(memberCount.Load()),
 	})
 }
 
