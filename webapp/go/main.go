@@ -608,14 +608,11 @@ func postBooksHandler(c echo.Context) error {
 		res = append(res, record)
 	}
 
-	go func() {
-		_, err = tx.NamedExecContext(c.Request().Context(), "INSERT INTO `book` (`id`, `title`, `author`, `genre`, `created_at`) VALUES (:id, :title, :author, :genre, :created_at)", res)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		_ = tx.Commit()
-	}()
+	_, err = tx.NamedExecContext(c.Request().Context(), "INSERT INTO `book` (`id`, `title`, `author`, `genre`, `created_at`) VALUES (:id, :title, :author, :genre, :created_at)", res)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	_ = tx.Commit()
 
 	return c.JSON(http.StatusCreated, res)
 }
