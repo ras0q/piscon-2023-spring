@@ -20,6 +20,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+	"github.com/kaz/pprotein/integration/echov4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/oklog/ulid/v2"
@@ -84,6 +85,10 @@ func main() {
 			lendingsAPI.POST("/return", returnLendingsHandler)
 		}
 	}
+
+	// pprotein
+	// TODO: 後で消す
+	go echov4.Integrate(e)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
@@ -238,6 +243,14 @@ type InitializeHandlerResponse struct {
 
 // 初期化用ハンドラ
 func initializeHandler(c echo.Context) error {
+	// pprotein
+	// TODO: 後で消す
+	go func() {
+		if _, err := http.Get("http://pprotein.ras.trap.show/api/group/collect"); err != nil {
+			log.Printf("failed to communicate with pprotein: %v", err)
+		}
+	}()
+
 	var req InitializeHandlerRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
