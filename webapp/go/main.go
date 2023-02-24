@@ -621,7 +621,6 @@ func postBooksHandler(c echo.Context) error {
 		_ = tx.Rollback()
 	}()
 
-	// TODO: N+1
 	for _, req := range reqSlice {
 		if req.Title == "" || req.Author == "" {
 			return echo.NewHTTPError(http.StatusBadRequest, "title, author is required")
@@ -631,16 +630,6 @@ func postBooksHandler(c echo.Context) error {
 		}
 
 		id := generateID()
-
-		go func() {
-			_, err := tx.ExecContext(c.Request().Context(),
-				"INSERT INTO `book` (`id`, `title`, `author`, `genre`, `created_at`) VALUES (?, ?, ?, ?, ?)",
-				id, req.Title, req.Author, req.Genre, createdAt)
-			if err != nil {
-				log.Println(err)
-			}
-		}()
-
 		record := Book{
 			ID:        id,
 			Title:     req.Title,
@@ -649,11 +638,17 @@ func postBooksHandler(c echo.Context) error {
 			CreatedAt: createdAt,
 		}
 		bookCache.Store(id, record)
-
 		res = append(res, record)
 	}
 
-	_ = tx.Commit()
+	go func() {
+		_, err = tx.NamedExecContext(c.Request().Context(), "INSERT INTO `book` (`id`, `title`, `author`, `genre`, `created_at`) VALUES (:id, :title, :author, :genre, :created_at)", res)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		_ = tx.Commit()
+	}()
 
 	return c.JSON(http.StatusCreated, res)
 }
