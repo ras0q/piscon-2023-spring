@@ -406,7 +406,10 @@ func getMembersHandler(c echo.Context) error {
 		m := value.(Member)
 		if !m.Banned {
 			for i := 0; i < len(members); i++ {
-				if order == "name_desc" {
+				if i == len(members)-1 {
+					members = append(members, m)
+					break
+				} else if order == "name_desc" {
 					if members[i].Name < m.Name {
 						restMembers := members[i:]
 						members = append(members[:i], m)
@@ -428,7 +431,7 @@ func getMembersHandler(c echo.Context) error {
 	})
 
 	if s := (page - 1) * memberPageLimit; s < 0 || s >= len(members) {
-		return echo.NewHTTPError(http.StatusNotFound, "no members to show in this page (invalid index)")
+		return echo.NewHTTPError(http.StatusNotFound, "no members to show in this page (invalid index)", s)
 	}
 	end := len(members)
 	if page*memberPageLimit < end {
