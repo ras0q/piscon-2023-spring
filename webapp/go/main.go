@@ -359,7 +359,7 @@ func postMemberHandler(c echo.Context) error {
 		Address:     req.Address,
 		PhoneNumber: req.PhoneNumber,
 		Banned:      false,
-		CreatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
 	}
 
 	memberCache.Store(id, res)
@@ -583,7 +583,7 @@ func postBooksHandler(c echo.Context) error {
 	}
 
 	res := []Book{}
-	createdAt := time.Now()
+	createdAt := time.Now().UTC()
 
 	tx, err := db.BeginTxx(c.Request().Context(), nil)
 	if err != nil {
@@ -855,7 +855,7 @@ func postLendingsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "member not found")
 	}
 
-	lendingTime := time.Now()
+	lendingTime := time.Now().UTC()
 	due := lendingTime.Add(LendingPeriod * time.Millisecond)
 	res := make([]PostLendingsResponse, len(req.BookIDs))
 
@@ -967,7 +967,7 @@ func getLendingsHandler(c echo.Context) error {
 	args := []any{}
 	if overDue == "true" {
 		query += " WHERE `due` > ?"
-		args = append(args, time.Now())
+		args = append(args, time.Now().UTC())
 	}
 
 	var res []GetLendingsResponse
