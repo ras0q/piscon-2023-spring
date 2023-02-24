@@ -773,7 +773,8 @@ func getBookHandler(c echo.Context) error {
 	res := GetBookResponse{
 		Book: book,
 	}
-	err = tx.GetContext(c.Request().Context(), &Lending{}, "SELECT * FROM `lending` WHERE `book_id` = ? LIMIT 1", id)
+	var _lendingID string
+	err = tx.GetContext(c.Request().Context(), &_lendingID, "SELECT id FROM `lending` WHERE `book_id` = ? LIMIT 1", id)
 	if err == nil {
 		res.Lending = true
 	} else if errors.Is(err, sql.ErrNoRows) {
