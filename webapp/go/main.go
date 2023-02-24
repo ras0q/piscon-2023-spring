@@ -48,8 +48,7 @@ func main() {
 	// TODO: なぜかno rowsになることがある
 	if errors.Is(err, sql.ErrNoRows) {
 		key = strings.Repeat("a", 16)
-	}
-	if err != nil {
+	} else if err != nil {
 		log.Panic(err)
 	}
 
