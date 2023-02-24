@@ -785,14 +785,6 @@ func getBookHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "encrypted must be boolean value")
 	}
 
-	tx, err := db.BeginTxx(c.Request().Context(), &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
-
 	book, ok := bookCache.Load(id)
 	if !ok {
 		return echo.NewHTTPError(http.StatusNotFound, "book not found")
@@ -802,7 +794,7 @@ func getBookHandler(c echo.Context) error {
 		Book: book.(Book),
 	}
 	var _lendingID string
-	err = tx.GetContext(c.Request().Context(), &_lendingID, "SELECT id FROM `lending` WHERE `book_id` = ? LIMIT 1", id)
+	err := db.GetContext(c.Request().Context(), &_lendingID, "SELECT id FROM `lending` WHERE `book_id` = ? LIMIT 1", id)
 	if err == nil {
 		res.Lending = true
 	} else if errors.Is(err, sql.ErrNoRows) {
@@ -810,8 +802,6 @@ func getBookHandler(c echo.Context) error {
 	} else {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
-
-	_ = tx.Commit()
 
 	return c.JSON(http.StatusOK, res)
 }
