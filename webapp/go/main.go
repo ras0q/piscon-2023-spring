@@ -873,7 +873,11 @@ func postLendingsHandler(c echo.Context) error {
 	res := make([]PostLendingsResponse, len(req.BookIDs))
 
 	books := make([]Book, len(req.BookIDs))
-	err = tx.SelectContext(c.Request().Context(), &books, "SELECT id, title FROM `book` WHERE `id` IN (?)", req.BookIDs)
+	sqlStr, params, err := sqlx.In("SELECT * FROM `book` WHERE `id` IN (?)", req.BookIDs)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	err = tx.SelectContext(c.Request().Context(), &books, sqlStr, params...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return echo.NewHTTPError(http.StatusNotFound, err.Error())
@@ -888,7 +892,11 @@ func postLendingsHandler(c echo.Context) error {
 
 	// 貸し出し中かどうか確認
 	lendings := make([]Lending, len(req.BookIDs))
-	err = tx.SelectContext(c.Request().Context(), &lendings, "SELECT * FROM `lending` WHERE `book_id` IN (?)", req.BookIDs)
+	sqlStr, params, err = sqlx.In("SELECT * FROM `lending` WHERE `book_id` IN (?)", req.BookIDs)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	err = tx.SelectContext(c.Request().Context(), &lendings, sqlStr, params...)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
