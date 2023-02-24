@@ -913,6 +913,7 @@ func postLendingsHandler(c echo.Context) error {
 		CreatedAt time.Time `db:"created_at"`
 	}
 	rows := make([]insertLendingColmuns, len(req.BookIDs))
+	lendingIDs := make([]string, len(req.BookIDs))
 	for i, bookID := range req.BookIDs {
 		bookTitle, ok := bookTitleMap[bookID]
 		if !ok {
@@ -924,6 +925,7 @@ func postLendingsHandler(c echo.Context) error {
 		}
 
 		id := generateID()
+		lendingIDs[i] = id
 		rows[i] = insertLendingColmuns{
 			ID:        id,
 			BookID:    bookID,
@@ -942,11 +944,18 @@ func postLendingsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	// TODO: 確認
-	// err := tx.GetContext(c.Request().Context(), &res[i], "SELECT * FROM `lending` WHERE `id` = ?", id)
-	// if err != nil {
-	// 	return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	// }
+	newLendings := make([]Lending, len(lendingIDs))
+	sqlStr, params, err = sqlx.In("SELECT * FROM `lending` WHERE `id` IN (?)", lendingIDs)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	err = tx.GetContext(c.Request().Context(), &newLendings, sqlStr, params...)
+	if err != nil || len(newLendings) != len(lendingIDs) {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	for i, lending := range newLendings {
+		res[i].Lending = lending
+	}
 
 	_ = tx.Commit()
 
