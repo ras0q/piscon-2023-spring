@@ -404,30 +404,36 @@ func getMembersHandler(c echo.Context) error {
 	members := make([]Member, 0, 10000)
 	memberCache.Range(func(_, value interface{}) bool {
 		m := value.(Member)
+
+		if len(members) == 0 {
+			members = append(members, m)
+			return true
+		}
+
 		if !m.Banned {
-			for i := 0; i < len(members); i++ {
-				if order == "name_desc" {
-					if members[i].Name < m.Name {
-						members = append(members, m)
-						copy(members[i+1:], members[i:len(members)-1])
-						members[i] = m
-						return true
-					}
+			min, max := 0, len(members)
+			for min < max {
+				mid := (min + max) / 2
+				if members[mid].Name < m.Name {
+					min = mid + 1
 				} else {
-					if members[i].Name > m.Name {
-						members = append(members, m)
-						copy(members[i+1:], members[i:len(members)-1])
-						members[i] = m
-						return true
-					}
+					max = mid
 				}
 			}
 
 			members = append(members, m)
+			copy(members[min+1:], members[min:len(members)-1])
+			members[min] = m
 		}
 
 		return true
 	})
+
+	if order == "name_desc" {
+		for i, j := 0, len(members)-1; i < j; i, j = i+1, j-1 {
+			members[i], members[j] = members[j], members[i]
+		}
+	}
 
 	if s := (page - 1) * memberPageLimit; s < 0 || s >= len(members) {
 		return echo.NewHTTPError(http.StatusNotFound, "no members to show in this page (invalid index)", s)
