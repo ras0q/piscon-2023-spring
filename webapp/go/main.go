@@ -421,10 +421,10 @@ func getMembersHandler(c echo.Context) error {
 		sort.Slice(members, func(i, j int) bool {
 			return members[i].Name > members[j].Name
 		})
-	// default is name_asc
+	// default is id asc
 	default:
 		sort.Slice(members, func(i, j int) bool {
-			return members[i].Name < members[j].Name
+			return members[i].ID < members[j].ID
 		})
 	}
 
