@@ -921,6 +921,7 @@ func postLendingsHandler(c echo.Context) error {
 			Due:       due,
 			CreatedAt: lendingTime,
 		}
+		lendingCache.Store(id, lendings[i])
 
 		res[i].MemberName = member.Name
 		res[i].BookTitle = bookTitle
