@@ -696,6 +696,10 @@ func getBooksHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "no books found")
 	}
 
+	sort.Slice(books, func(i, j int) bool {
+		return books[i].ID < books[j].ID
+	})
+
 	if s := (page - 1) * bookPageLimit; s < 0 || s >= len(books) {
 		return echo.NewHTTPError(http.StatusBadRequest, "page is invalid")
 	}
