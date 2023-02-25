@@ -21,6 +21,8 @@ func (j *sonicJSONSerializer) Serialize(c echo.Context, i interface{}, _ string)
 
 func (j *sonicJSONSerializer) Deserialize(c echo.Context, i interface{}) error {
 	var buf bytes.Buffer
-	buf.ReadFrom(c.Request().Body)
+	if _, err := buf.ReadFrom(c.Request().Body); err != nil {
+		return err
+	}
 	return decoder.NewDecoder(buf.String()).Decode(i)
 }

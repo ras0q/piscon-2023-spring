@@ -254,8 +254,7 @@ func generateID() string {
 var db *sqlx.DB
 
 func getEnvOrDefault(key string, defaultValue string) string {
-	val := os.Getenv(key)
-	if val != "" {
+	if val := os.Getenv(key); val != "" {
 		return val
 	}
 
