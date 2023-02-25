@@ -420,12 +420,10 @@ func postMemberHandler(c echo.Context) error {
 	memberCache.Store(id, res)
 	memberCount.Add(1)
 
-	go func() {
-		memberMux.Lock()
-		sortedMembersIDAsc = append(sortedMembersIDAsc, res)
-		setupSortedMembers(sortedMembersIDAsc)
-		memberMux.Unlock()
-	}()
+	memberMux.Lock()
+	sortedMembersIDAsc = append(sortedMembersIDAsc, res)
+	setupSortedMembers(sortedMembersIDAsc)
+	memberMux.Unlock()
 
 	return c.JSON(http.StatusCreated, res)
 }
@@ -550,12 +548,10 @@ func patchMemberHandler(c echo.Context) error {
 
 	memberCache.Store(id, member)
 
-	go func() {
-		memberMux.Lock()
-		sortedMembersIDAsc = append(sortedMembersIDAsc, member)
-		setupSortedMembers(sortedMembersIDAsc)
-		memberMux.Unlock()
-	}()
+	memberMux.Lock()
+	sortedMembersIDAsc = append(sortedMembersIDAsc, member)
+	setupSortedMembers(sortedMembersIDAsc)
+	memberMux.Unlock()
 
 	return c.NoContent(http.StatusNoContent)
 }
@@ -576,12 +572,10 @@ func banMemberHandler(c echo.Context) error {
 	member.Banned = true
 	memberCache.Store(id, member)
 
-	go func() {
-		memberMux.Lock()
-		sortedMembersIDAsc = append(sortedMembersIDAsc, member)
-		setupSortedMembers(sortedMembersIDAsc)
-		memberMux.Unlock()
-	}()
+	memberMux.Lock()
+	sortedMembersIDAsc = append(sortedMembersIDAsc, member)
+	setupSortedMembers(sortedMembersIDAsc)
+	memberMux.Unlock()
 
 	lendingCache.Range(func(k, v interface{}) bool {
 		if v.(Lending).MemberID == id {
