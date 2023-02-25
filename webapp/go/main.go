@@ -696,11 +696,14 @@ func getBooksHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "no books found")
 	}
 
-	if page < 1 || page*bookPageLimit > total {
+	if s := (page - 1) * bookPageLimit; s < 0 || s >= len(books) {
 		return echo.NewHTTPError(http.StatusBadRequest, "page is invalid")
 	}
-
-	books = books[(page-1)*bookPageLimit : page*bookPageLimit]
+	end := len(books)
+	if page*bookPageLimit < end {
+		end = page * bookPageLimit
+	}
+	books = books[(page-1)*bookPageLimit : end]
 	if len(books) == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "no books to show in this page")
 	}
