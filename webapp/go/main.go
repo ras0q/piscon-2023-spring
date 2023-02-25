@@ -605,14 +605,6 @@ func postBooksHandler(c echo.Context) error {
 	res := make([]Book, 0, len(reqSlice))
 	createdAt := time.Now().In(jst)
 
-	tx, err := db.BeginTxx(c.Request().Context(), nil)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
-
 	for _, req := range reqSlice {
 		if req.Title == "" || req.Author == "" {
 			return echo.NewHTTPError(http.StatusBadRequest, "title, author is required")
@@ -632,12 +624,6 @@ func postBooksHandler(c echo.Context) error {
 		bookCache.Store(id, record)
 		res = append(res, record)
 	}
-
-	_, err = tx.NamedExecContext(c.Request().Context(), "INSERT INTO `book` (`id`, `title`, `author`, `genre`, `created_at`) VALUES (:id, :title, :author, :genre, :created_at)", res)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	_ = tx.Commit()
 
 	return c.JSON(http.StatusCreated, res)
 }
@@ -853,14 +839,6 @@ func postLendingsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "at least one book_ids is required")
 	}
 
-	tx, err := db.BeginTxx(c.Request().Context(), nil)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
-
 	// 会員の存在確認
 	member, ok := getMember(req.MemberID, true)
 	if !ok {
@@ -871,22 +849,19 @@ func postLendingsHandler(c echo.Context) error {
 	due := lendingTime.Add(LendingPeriod * time.Millisecond)
 	res := make([]PostLendingsResponse, len(req.BookIDs))
 
-	books := make([]Book, len(req.BookIDs))
-	sqlStr, params, err := sqlx.In("SELECT * FROM `book` WHERE `id` IN (?)", req.BookIDs)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	err = tx.SelectContext(c.Request().Context(), &books, sqlStr, params...)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return echo.NewHTTPError(http.StatusNotFound, err.Error())
-		}
-
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
 	bookTitleMap := make(map[string]string)
-	for _, book := range books {
-		bookTitleMap[book.ID] = book.Title
+	bookCache.Range(func(_, v interface{}) bool {
+		book := v.(Book)
+		for _, id := range req.BookIDs {
+			if book.ID == id {
+				bookTitleMap[book.ID] = book.Title
+				return true
+			}
+		}
+		return true
+	})
+	if len(bookTitleMap) == 0 {
+		return echo.NewHTTPError(http.StatusNotFound, "book not found")
 	}
 
 	// 貸し出し中かどうか確認
@@ -939,8 +914,6 @@ func postLendingsHandler(c echo.Context) error {
 		}
 		return true
 	})
-
-	_ = tx.Commit()
 
 	return c.JSON(http.StatusCreated, res)
 }
