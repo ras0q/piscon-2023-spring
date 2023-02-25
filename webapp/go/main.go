@@ -642,11 +642,13 @@ func getBooksHandler(c echo.Context) error {
 	title := c.QueryParam("title")
 	author := c.QueryParam("author")
 	genre := c.QueryParam("genre")
+	var genreInt int
 	if genre != "" {
-		genreInt, err := strconv.Atoi(genre)
+		_genreInt, err := strconv.Atoi(genre)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 		}
+		genreInt = _genreInt
 
 		if genreInt < 0 || genreInt > 9 {
 			return echo.NewHTTPError(http.StatusBadRequest, "genre is invalid")
@@ -669,49 +671,36 @@ func getBooksHandler(c echo.Context) error {
 	// シーク法をフロントエンドでは実装したが、バックエンドは力尽きた
 	_ = c.QueryParam("last_book_id")
 
-	tx, err := db.BeginTxx(c.Request().Context(), nil)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
-
-	query := "SELECT COUNT(*) FROM `book` WHERE "
-	args := make([]any, 0, 10)
-	if genre != "" {
-		query += "genre = ? AND "
-		args = append(args, genre)
-	}
-	if title != "" {
-		query += "title LIKE ? AND "
-		args = append(args, "%"+title+"%")
-	}
-	if author != "" {
-		query += "author LIKE ? AND "
-		args = append(args, "%"+author+"%")
-	}
-	query = strings.TrimSuffix(query, "AND ")
-
 	var total int
-	err = tx.GetContext(c.Request().Context(), &total, query, args...)
-	if err != nil {
-		c.Logger().Error(err)
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	var berr error
+	books := make([]Book, 0, 10000)
+	bookCache.Range(func(_, value interface{}) bool {
+		book := value.(Book)
+		if genre != "" && book.Genre != Genre(genreInt) {
+			return true
+		}
+		if title != "" && !strings.Contains(book.Title, title) {
+			return true
+		}
+		if author != "" && !strings.Contains(book.Author, author) {
+			return true
+		}
+		total++
+		books = append(books, book)
+		return true
+	})
+	if berr != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, berr.Error())
 	}
 	if total == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "no books found")
 	}
 
-	query = strings.ReplaceAll(query, "COUNT(*)", "*")
-	query += "LIMIT ? OFFSET ?"
-	args = append(args, bookPageLimit, (page-1)*bookPageLimit)
-
-	var books []Book
-	err = tx.SelectContext(c.Request().Context(), &books, query, args...)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	if page < 1 || page*bookPageLimit > total {
+		return echo.NewHTTPError(http.StatusBadRequest, "page is invalid")
 	}
+
+	books = books[(page-1)*bookPageLimit : page*bookPageLimit]
 	if len(books) == 0 {
 		return echo.NewHTTPError(http.StatusNotFound, "no books to show in this page")
 	}
@@ -722,7 +711,7 @@ func getBooksHandler(c echo.Context) error {
 	}
 
 	lengings := make([]Lending, len(books))
-	err = tx.SelectContext(c.Request().Context(), &lengings, "SELECT id FROM `lending`")
+	err = db.SelectContext(c.Request().Context(), &lengings, "SELECT id FROM `lending`")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -736,8 +725,6 @@ func getBooksHandler(c echo.Context) error {
 		_, ok := lengingsMap[book.ID]
 		res.Books[i].Lending = ok
 	}
-
-	_ = tx.Commit()
 
 	return c.JSON(http.StatusOK, res)
 }
