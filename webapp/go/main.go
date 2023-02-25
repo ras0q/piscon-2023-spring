@@ -1017,7 +1017,6 @@ func returnLendingsHandler(c echo.Context) error {
 		for _, bookID := range req.BookIDs {
 			if lending.BookID == bookID && lending.MemberID == req.MemberID {
 				lendingCache.Delete(k)
-				return true
 			}
 		}
 		return true
