@@ -964,8 +964,7 @@ func getLendingsHandler(c echo.Context) error {
 		_ = tx.Rollback()
 	}()
 
-	query := "SELECT `lending`.*, `book`.`title` AS `book_title` FROM `lending`" +
-		" JOIN `book` ON `lending`.`book_id` = `book`.`id`"
+	query := "SELECT * FROM `lending`"
 	args := []any{}
 	if overDue == "true" {
 		query += " WHERE `due` > ?"
@@ -981,6 +980,11 @@ func getLendingsHandler(c echo.Context) error {
 	_ = tx.Commit()
 
 	for _, r := range res {
+		b, ok := bookCache.Load(r.BookID)
+		if ok {
+			r.BookTitle = b.(Book).Title
+		}
+
 		m, ok := memberCache.Load(r.MemberID)
 		if ok {
 			r.MemberName = m.(Member).Name
