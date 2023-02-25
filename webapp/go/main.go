@@ -421,9 +421,7 @@ func getMembersHandler(c echo.Context) error {
 				}
 			}
 
-			members = append(members, m)
-			copy(members[min+1:], members[min:len(members)-1])
-			members[min] = m
+			members = append(members[:min], append([]Member{m}, members[min:]...)...)
 		}
 
 		return true
