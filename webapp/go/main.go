@@ -104,9 +104,10 @@ func main() {
 }
 
 var (
-	bookCache   sync.Map
-	memberCache sync.Map
-	memberCount atomic.Int64
+	bookCache    sync.Map
+	memberCache  sync.Map
+	memberCount  atomic.Int64
+	lendingCache sync.Map
 )
 
 func initCache() {
@@ -128,6 +129,15 @@ func initCache() {
 
 	for _, member := range members {
 		memberCache.Store(member.ID, member)
+	}
+
+	lendings := []Lending{}
+	if err := db.SelectContext(context.Background(), &lendings, "SELECT * FROM `lending`"); err != nil {
+		log.Panic(err)
+	}
+
+	for _, lending := range lendings {
+		lendingCache.Store(lending.BookID, lending)
 	}
 }
 
@@ -717,19 +727,16 @@ func getBooksHandler(c echo.Context) error {
 		Total: total,
 	}
 
-	lengings := make([]Lending, len(books))
-	err = db.SelectContext(c.Request().Context(), &lengings, "SELECT id FROM `lending`")
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	lengingsMap := make(map[string]struct{})
-	for _, lending := range lengings {
-		lengingsMap[lending.BookID] = struct{}{}
-	}
+	lengingsMapByGroupID := make(map[string]struct{})
+	lendingCache.Range(func(_, v interface{}) bool {
+		b := v.(Lending)
+		lengingsMapByGroupID[b.BookID] = struct{}{}
+		return true
+	})
 
 	for i, book := range books {
 		res.Books[i].Book = book
-		_, ok := lengingsMap[book.ID]
+		_, ok := lengingsMapByGroupID[book.ID]
 		res.Books[i].Lending = ok
 	}
 
@@ -767,15 +774,16 @@ func getBookHandler(c echo.Context) error {
 	res := GetBookResponse{
 		Book: book.(Book),
 	}
-	var _lendingID string
-	err := db.GetContext(c.Request().Context(), &_lendingID, "SELECT id FROM `lending` WHERE `book_id` = ? LIMIT 1", id)
-	if err == nil {
-		res.Lending = true
-	} else if errors.Is(err, sql.ErrNoRows) {
-		res.Lending = false
-	} else {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
+
+	res.Lending = false
+	lendingCache.Range(func(_, v interface{}) bool {
+		b := v.(Lending)
+		if b.BookID == id {
+			res.Lending = true
+			return false
+		}
+		return true
+	})
 
 	return c.JSON(http.StatusOK, res)
 }
@@ -880,22 +888,20 @@ func postLendingsHandler(c echo.Context) error {
 	}
 
 	// 貸し出し中かどうか確認
-	lendings := make([]Lending, len(req.BookIDs))
-	sqlStr, params, err = sqlx.In("SELECT id FROM `lending` WHERE `book_id` IN (?)", req.BookIDs)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	err = tx.SelectContext(c.Request().Context(), &lendings, sqlStr, params...)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	lendingMap := make(map[string]Lending)
-	for _, lending := range lendings {
-		lendingMap[lending.BookID] = lending
-	}
+	lendingMap := make(map[string]struct{})
+	lendingCache.Range(func(_, v interface{}) bool {
+		lending := v.(Lending)
+		for _, bookID := range req.BookIDs {
+			if lending.BookID == bookID {
+				lendingMap[lending.BookID] = struct{}{}
+				return true
+			}
+		}
+		return true
+	})
 
-	lendings2 := make([]Lending, len(req.BookIDs))
-	lendingIDs := make([]string, len(req.BookIDs))
+	lendings := make([]Lending, len(req.BookIDs))
+	newLendingIDs := make([]string, len(req.BookIDs))
 	for i, bookID := range req.BookIDs {
 		bookTitle, ok := bookTitleMap[bookID]
 		if !ok {
@@ -907,8 +913,8 @@ func postLendingsHandler(c echo.Context) error {
 		}
 
 		id := generateID()
-		lendingIDs[i] = id
-		lendings2[i] = Lending{
+		newLendingIDs[i] = id
+		lendings[i] = Lending{
 			ID:        id,
 			BookID:    bookID,
 			MemberID:  req.MemberID,
@@ -921,23 +927,21 @@ func postLendingsHandler(c echo.Context) error {
 	}
 
 	// 貸し出し
-	_, err = tx.NamedExecContext(c.Request().Context(), "INSERT INTO `lending` (`id`, `book_id`, `member_id`, `due`, `created_at`) VALUES (:id, :book_id, :member_id, :due, :created_at)", lendings2)
+	_, err = tx.NamedExecContext(c.Request().Context(), "INSERT INTO `lending` (`id`, `book_id`, `member_id`, `due`, `created_at`) VALUES (:id, :book_id, :member_id, :due, :created_at)", lendings)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	newLendings := make([]Lending, len(lendingIDs))
-	sqlStr, params, err = sqlx.In("SELECT * FROM `lending` WHERE `id` IN (?)", lendingIDs)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	err = tx.SelectContext(c.Request().Context(), &newLendings, sqlStr, params...)
-	if err != nil || len(newLendings) != len(lendingIDs) {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	for i, lending := range newLendings {
-		res[i].Lending = lending
-	}
+	lendingCache.Range(func(_, v interface{}) bool {
+		lending := v.(Lending)
+		for i, id := range newLendingIDs {
+			if lending.ID == id {
+				res[i].Lending = lending
+				return true
+			}
+		}
+		return true
+	})
 
 	_ = tx.Commit()
 
@@ -956,30 +960,17 @@ func getLendingsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "over_due must be boolean value")
 	}
 
-	tx, err := db.BeginTxx(c.Request().Context(), &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
-
-	query := "SELECT * FROM `lending`"
-	args := []any{}
-	if overDue == "true" {
-		query += " WHERE `due` > ?"
-		args = append(args, time.Now())
-	}
-
+	now := time.Now()
 	var res []GetLendingsResponse
-	err = tx.SelectContext(c.Request().Context(), &res, query, args...)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
+	lendingCache.Range(func(_, v interface{}) bool {
+		lending := v.(Lending)
 
-	_ = tx.Commit()
+		if overDue == "true" && lending.Due.Before(now) {
+			return true
+		}
 
-	for _, r := range res {
+		r := GetLendingsResponse{Lending: lending}
+
 		b, ok := bookCache.Load(r.BookID)
 		if ok {
 			r.BookTitle = b.(Book).Title
@@ -989,7 +980,10 @@ func getLendingsHandler(c echo.Context) error {
 		if ok {
 			r.MemberName = m.(Member).Name
 		}
-	}
+
+		res = append(res, r)
+		return true
+	})
 
 	return c.JSON(http.StatusOK, res)
 }
@@ -1025,18 +1019,22 @@ func returnLendingsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "member not found")
 	}
 
-	// TODO: N+1
+	lendingMap := make(map[string]struct{})
+	lendingCache.Range(func(_, v interface{}) bool {
+		lending := v.(Lending)
+		for _, bookID := range req.BookIDs {
+			if lending.BookID == bookID && lending.MemberID == req.MemberID {
+				lendingMap[lending.BookID] = struct{}{}
+				return true
+			}
+		}
+		return true
+	})
+
 	for _, bookID := range req.BookIDs {
 		// 貸し出しの存在確認
-		var lending Lending
-		err = tx.GetContext(c.Request().Context(), &lending,
-			"SELECT * FROM `lending` WHERE `member_id` = ? AND `book_id` = ?", req.MemberID, bookID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return echo.NewHTTPError(http.StatusNotFound, err.Error())
-			}
-
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		if _, ok := lendingMap[bookID]; !ok {
+			return echo.NewHTTPError(http.StatusNotFound, "lending not found")
 		}
 
 		_, err = tx.ExecContext(c.Request().Context(),
