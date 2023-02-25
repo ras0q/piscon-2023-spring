@@ -457,7 +457,6 @@ func getMembersHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid order")
 	}
 
-	memberMux.Lock()
 	members := sortedMembersIDAsc
 	switch order {
 	case "name_asc":
@@ -465,7 +464,6 @@ func getMembersHandler(c echo.Context) error {
 	case "name_desc":
 		members = sortedMembersNameDesc
 	}
-	memberMux.Unlock()
 
 	if s := (page - 1) * memberPageLimit; s < 0 || s >= len(members) {
 		return echo.NewHTTPError(http.StatusNotFound, "no members to show in this page (invalid index)", s)
