@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -404,33 +405,27 @@ func getMembersHandler(c echo.Context) error {
 	members := make([]Member, 0, 10000)
 	memberCache.Range(func(_, value interface{}) bool {
 		m := value.(Member)
-
-		if len(members) == 0 {
-			members = append(members, m)
-			return true
-		}
-
 		if !m.Banned {
-			min, max := 0, len(members)
-			for min < max {
-				mid := (min + max) / 2
-				if members[mid].Name < m.Name {
-					min = mid + 1
-				} else {
-					max = mid
-				}
-			}
-
-			members = append(members[:min], append([]Member{m}, members[min:]...)...)
+			members = append(members, m)
 		}
 
 		return true
 	})
 
-	if order == "name_desc" {
-		for i, j := 0, len(members)-1; i < j; i, j = i+1, j-1 {
-			members[i], members[j] = members[j], members[i]
-		}
+	switch order {
+	case "name_asc":
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].Name < members[j].Name
+		})
+	case "name_desc":
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].Name > members[j].Name
+		})
+	// default is name_asc
+	default:
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].Name < members[j].Name
+		})
 	}
 
 	if s := (page - 1) * memberPageLimit; s < 0 || s >= len(members) {
