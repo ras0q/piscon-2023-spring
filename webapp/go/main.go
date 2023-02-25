@@ -104,14 +104,10 @@ func main() {
 }
 
 var (
-	bookCache             sync.Map
-	memberCache           sync.Map
-	memberCount           atomic.Int64
-	sortedMembersIDAsc    []Member
-	sortedMembersNameAsc  []Member
-	sortedMembersNameDesc []Member
-	memberMux             sync.Mutex
-	lendingCache          sync.Map
+	bookCache    sync.Map
+	memberCache  sync.Map
+	memberCount  atomic.Int64
+	lendingCache sync.Map
 )
 
 func initCache() {
@@ -128,10 +124,6 @@ func initCache() {
 	if err := db.SelectContext(context.Background(), &members, "SELECT * FROM `member`"); err != nil {
 		log.Panic(err)
 	}
-
-	memberMux.Lock()
-	setupSortedMembers(members)
-	memberMux.Unlock()
 
 	memberCount.Store(int64(len(members)))
 
@@ -156,37 +148,6 @@ func getMember(id string, allowBanned bool) (Member, bool) {
 	}
 
 	return member.(Member), true
-}
-
-func setupSortedMembers(members []Member) {
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-
-	go func() {
-		sort.Slice(members, func(i, j int) bool {
-			return members[i].ID < members[j].ID
-		})
-		sortedMembersIDAsc = members
-		wg.Done()
-	}()
-
-	go func() {
-		sort.Slice(members, func(i, j int) bool {
-			return members[i].Name < members[j].Name
-		})
-		sortedMembersNameAsc = members
-		wg.Done()
-	}()
-
-	go func() {
-		sort.Slice(members, func(i, j int) bool {
-			return members[i].Name > members[j].Name
-		})
-		sortedMembersNameDesc = members
-		wg.Done()
-	}()
-
-	wg.Wait()
 }
 
 /*
@@ -420,13 +381,6 @@ func postMemberHandler(c echo.Context) error {
 	memberCache.Store(id, res)
 	memberCount.Add(1)
 
-	go func() {
-		memberMux.Lock()
-		sortedMembersIDAsc = append(sortedMembersIDAsc, res)
-		setupSortedMembers(sortedMembersIDAsc)
-		memberMux.Unlock()
-	}()
-
 	return c.JSON(http.StatusCreated, res)
 }
 
@@ -457,12 +411,30 @@ func getMembersHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid order")
 	}
 
-	members := sortedMembersIDAsc
+	members := make([]Member, 0, 10000)
+	memberCache.Range(func(_, value interface{}) bool {
+		m := value.(Member)
+		if !m.Banned {
+			members = append(members, m)
+		}
+
+		return true
+	})
+
 	switch order {
 	case "name_asc":
-		members = sortedMembersNameAsc
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].Name < members[j].Name
+		})
 	case "name_desc":
-		members = sortedMembersNameDesc
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].Name > members[j].Name
+		})
+	// default is id asc
+	default:
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].ID < members[j].ID
+		})
 	}
 
 	if s := (page - 1) * memberPageLimit; s < 0 || s >= len(members) {
@@ -545,15 +517,7 @@ func patchMemberHandler(c echo.Context) error {
 	if req.PhoneNumber != "" {
 		member.PhoneNumber = req.PhoneNumber
 	}
-
 	memberCache.Store(id, member)
-
-	go func() {
-		memberMux.Lock()
-		sortedMembersIDAsc = append(sortedMembersIDAsc, member)
-		setupSortedMembers(sortedMembersIDAsc)
-		memberMux.Unlock()
-	}()
 
 	return c.NoContent(http.StatusNoContent)
 }
@@ -573,13 +537,6 @@ func banMemberHandler(c echo.Context) error {
 
 	member.Banned = true
 	memberCache.Store(id, member)
-
-	go func() {
-		memberMux.Lock()
-		sortedMembersIDAsc = append(sortedMembersIDAsc, member)
-		setupSortedMembers(sortedMembersIDAsc)
-		memberMux.Unlock()
-	}()
 
 	lendingCache.Range(func(k, v interface{}) bool {
 		if v.(Lending).MemberID == id {
