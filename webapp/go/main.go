@@ -539,10 +539,12 @@ func banMemberHandler(c echo.Context) error {
 	member.Banned = true
 	memberCache.Store(id, member)
 
-	_, err := db.ExecContext(c.Request().Context(), "DELETE FROM `lending` WHERE `member_id` = ?", id)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
+	lendingCache.Range(func(k, v interface{}) bool {
+		if v.(Lending).MemberID == id {
+			lendingCache.Delete(k)
+		}
+		return true
+	})
 
 	return c.NoContent(http.StatusNoContent)
 }
@@ -927,12 +929,6 @@ func postLendingsHandler(c echo.Context) error {
 		res[i].BookTitle = bookTitle
 	}
 
-	// 貸し出し
-	_, err = tx.NamedExecContext(c.Request().Context(), "INSERT INTO `lending` (`id`, `book_id`, `member_id`, `due`, `created_at`) VALUES (:id, :book_id, :member_id, :due, :created_at)", lendings)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-
 	lendingCache.Range(func(_, v interface{}) bool {
 		lending := v.(Lending)
 		for i, id := range newLendingIDs {
@@ -1007,45 +1003,21 @@ func returnLendingsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "at least one book_ids is required")
 	}
 
-	tx, err := db.BeginTxx(c.Request().Context(), nil)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
-
 	// 会員の存在確認
 	if _, ok := getMember(req.MemberID, true); !ok {
 		return echo.NewHTTPError(http.StatusNotFound, "member not found")
 	}
 
-	lendingMap := make(map[string]struct{})
-	lendingCache.Range(func(_, v interface{}) bool {
+	lendingCache.Range(func(k, v interface{}) bool {
 		lending := v.(Lending)
 		for _, bookID := range req.BookIDs {
 			if lending.BookID == bookID && lending.MemberID == req.MemberID {
-				lendingMap[lending.BookID] = struct{}{}
+				lendingCache.Delete(k)
 				return true
 			}
 		}
 		return true
 	})
-
-	for _, bookID := range req.BookIDs {
-		// 貸し出しの存在確認
-		if _, ok := lendingMap[bookID]; !ok {
-			return echo.NewHTTPError(http.StatusNotFound, "lending not found")
-		}
-
-		_, err = tx.ExecContext(c.Request().Context(),
-			"DELETE FROM `lending` WHERE `member_id` =? AND `book_id` =?", req.MemberID, bookID)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-		}
-	}
-
-	_ = tx.Commit()
 
 	return c.NoContent(http.StatusNoContent)
 }
