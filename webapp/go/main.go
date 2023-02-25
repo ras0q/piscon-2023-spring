@@ -982,6 +982,10 @@ func getLendingsHandler(c echo.Context) error {
 		return true
 	})
 
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].ID < res[j].ID
+	})
+
 	return c.JSON(http.StatusOK, res)
 }
 
