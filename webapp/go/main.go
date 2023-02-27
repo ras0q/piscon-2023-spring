@@ -130,7 +130,7 @@ func initCache() {
 	for _, member := range members {
 		memberCache.Store(member.ID, member)
 	}
-	go updateMemberCacheIndex()
+	updateMemberCacheIndex()
 
 	lendings := []Lending{}
 	if err := db.SelectContext(context.Background(), &lendings, "SELECT * FROM `lending`"); err != nil {
