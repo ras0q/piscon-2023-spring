@@ -130,7 +130,7 @@ func initCache() {
 	for _, member := range members {
 		memberCache.Store(member.ID, member)
 	}
-	updateMemberCacheIndex()
+	go updateMemberCacheIndex()
 
 	lendings := []Lending{}
 	if err := db.SelectContext(context.Background(), &lendings, "SELECT * FROM `lending`"); err != nil {
@@ -151,7 +151,12 @@ func getMember(id string, allowBanned bool) (Member, bool) {
 	return member.(Member), true
 }
 
+var memberCacheMux sync.Mutex
+
 func updateMemberCacheIndex() {
+	memberCacheMux.Lock()
+	defer memberCacheMux.Unlock()
+
 	members := make([]Member, 0, memberCount.Load())
 	memberCache.Range(func(_, v interface{}) bool {
 		members = append(members, v.(Member))
@@ -421,7 +426,7 @@ func postMemberHandler(c echo.Context) error {
 	}
 
 	memberCache.Store(id, res)
-	updateMemberCacheIndex()
+	go updateMemberCacheIndex()
 	memberCount.Add(1)
 
 	return c.JSON(http.StatusCreated, res)
@@ -558,7 +563,7 @@ func patchMemberHandler(c echo.Context) error {
 		member.PhoneNumber = req.PhoneNumber
 	}
 	memberCache.Store(id, member)
-	updateMemberCacheIndex()
+	go updateMemberCacheIndex()
 
 	return c.NoContent(http.StatusNoContent)
 }
@@ -578,7 +583,7 @@ func banMemberHandler(c echo.Context) error {
 
 	member.Banned = true
 	memberCache.Store(id, member)
-	updateMemberCacheIndex()
+	go updateMemberCacheIndex()
 
 	lendingCache.Range(func(k, v interface{}) bool {
 		if v.(Lending).MemberID == id {
