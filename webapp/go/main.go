@@ -454,26 +454,26 @@ func getMembersHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid order")
 	}
 
-	_members := make([]Member, 0, 10000)
+	_members := make([]Member, memberCount.Load())
 	memberCache.Range(func(_, value interface{}) bool {
 		m := value.(Member)
-		if !m.Banned {
-			_members = append(_members, m)
+		switch order {
+		case "name_asc":
+			_members[m.NameIndex] = m
+		case "name_desc":
+			_members[len(_members)-m.NameIndex-1] = m
+		// default is id asc
+		default:
+			_members[m.IDIndex] = m
 		}
 
 		return true
 	})
 
-	members := make([]Member, len(_members))
+	members := make([]Member, 0, len(_members))
 	for _, m := range _members {
-		switch order {
-		case "name_asc":
-			members[m.NameIndex] = m
-		case "name_desc":
-			members[len(members)-m.NameIndex-1] = m
-		// default is id asc
-		default:
-			members[m.IDIndex] = m
+		if !m.Banned {
+			members = append(members, m)
 		}
 	}
 
