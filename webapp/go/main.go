@@ -130,6 +130,7 @@ func initCache() {
 	for _, member := range members {
 		memberCache.Store(member.ID, member)
 	}
+	updateMemberCacheIndex()
 
 	lendings := []Lending{}
 	if err := db.SelectContext(context.Background(), &lendings, "SELECT * FROM `lending`"); err != nil {
@@ -150,6 +151,44 @@ func getMember(id string, allowBanned bool) (Member, bool) {
 	return member.(Member), true
 }
 
+func updateMemberCacheIndex() {
+	members := make([]Member, 0, memberCount.Load())
+	memberCache.Range(func(_, v interface{}) bool {
+		members = append(members, v.(Member))
+		return true
+	})
+
+	needUpdates := make(map[string]struct{}, len(members))
+
+	sort.Slice(members, func(i, j int) bool {
+		return members[i].ID < members[j].ID
+	})
+
+	for i, m := range members {
+		if m.IDIndex != i {
+			needUpdates[m.ID] = struct{}{}
+			m.IDIndex = i
+		}
+	}
+
+	sort.Slice(members, func(i, j int) bool {
+		return members[i].Name < members[j].Name
+	})
+
+	for i, m := range members {
+		if m.NameIndex != i {
+			needUpdates[m.ID] = struct{}{}
+			m.NameIndex = i
+		}
+	}
+
+	for _, member := range members {
+		if _, ok := needUpdates[member.ID]; ok {
+			memberCache.Store(member.ID, member)
+		}
+	}
+}
+
 /*
 ---------------------------------------------------------------
 Domain Models
@@ -164,6 +203,9 @@ type Member struct {
 	PhoneNumber string    `json:"phone_number" db:"phone_number"`
 	Banned      bool      `json:"banned" db:"banned"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+
+	IDIndex   int `json:"-" db:"-"`
+	NameIndex int `json:"-" db:"-"`
 }
 
 // 図書分類
@@ -379,6 +421,7 @@ func postMemberHandler(c echo.Context) error {
 	}
 
 	memberCache.Store(id, res)
+	updateMemberCacheIndex()
 	memberCount.Add(1)
 
 	return c.JSON(http.StatusCreated, res)
@@ -411,30 +454,27 @@ func getMembersHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid order")
 	}
 
-	members := make([]Member, 0, 10000)
+	_members := make([]Member, 0, 10000)
 	memberCache.Range(func(_, value interface{}) bool {
 		m := value.(Member)
 		if !m.Banned {
-			members = append(members, m)
+			_members = append(_members, m)
 		}
 
 		return true
 	})
 
-	switch order {
-	case "name_asc":
-		sort.Slice(members, func(i, j int) bool {
-			return members[i].Name < members[j].Name
-		})
-	case "name_desc":
-		sort.Slice(members, func(i, j int) bool {
-			return members[i].Name > members[j].Name
-		})
-	// default is id asc
-	default:
-		sort.Slice(members, func(i, j int) bool {
-			return members[i].ID < members[j].ID
-		})
+	members := make([]Member, len(_members))
+	for _, m := range _members {
+		switch order {
+		case "name_asc":
+			members[m.NameIndex] = m
+		case "name_desc":
+			members[len(members)-m.NameIndex-1] = m
+		// default is id asc
+		default:
+			members[m.IDIndex] = m
+		}
 	}
 
 	if s := (page - 1) * memberPageLimit; s < 0 || s >= len(members) {
@@ -518,6 +558,7 @@ func patchMemberHandler(c echo.Context) error {
 		member.PhoneNumber = req.PhoneNumber
 	}
 	memberCache.Store(id, member)
+	updateMemberCacheIndex()
 
 	return c.NoContent(http.StatusNoContent)
 }
@@ -537,6 +578,7 @@ func banMemberHandler(c echo.Context) error {
 
 	member.Banned = true
 	memberCache.Store(id, member)
+	updateMemberCacheIndex()
 
 	lendingCache.Range(func(k, v interface{}) bool {
 		if v.(Lending).MemberID == id {
