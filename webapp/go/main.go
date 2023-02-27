@@ -563,7 +563,6 @@ func patchMemberHandler(c echo.Context) error {
 		member.PhoneNumber = req.PhoneNumber
 	}
 	memberCache.Store(id, member)
-	go updateMemberCacheIndex()
 
 	return c.NoContent(http.StatusNoContent)
 }
@@ -583,7 +582,6 @@ func banMemberHandler(c echo.Context) error {
 
 	member.Banned = true
 	memberCache.Store(id, member)
-	go updateMemberCacheIndex()
 
 	lendingCache.Range(func(k, v interface{}) bool {
 		if v.(Lending).MemberID == id {
